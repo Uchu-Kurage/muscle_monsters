@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+
+:root {
+  /* Color Palette - Cyberpunk / Retro Dark Mode */
+  --bg-dark: #0a0a12;
+  --bg-panel: rgba(20, 20, 35, 0.7);
+  --bg-panel-hover: rgba(30, 30, 50, 0.8);
+  --border-color: rgba(0, 255, 255, 0.3);
+  --border-highlight: #00ffff;
+  
+  --text-primary: #e0e0ff;
+  --text-secondary: #8b8bac;
+  --text-accent: #ff00ff;
+
+  --exp-bar-bg: #1a1a2e;
+  --exp-bar-fill: linear-gradient(90deg, #ff007f, #ff8c00);
+  
+  --btn-bg: rgba(0, 255, 255, 0.1);
+  --btn-border: #00ffff;
+  --btn-text: #00ffff;
+  --btn-hover-bg: #00ffff;
+  --btn-hover-text: #000;
+
+  --font-pixel: 'DotGothic16', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-pixel);
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(20, 20, 40, 1) 0%, rgba(10, 10, 20, 1) 100%),
+    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 30px 30px, 30px 30px;
+}
+
+#root {
+  width: 100%;
+  max-width: 800px;
+  min-height: 100vh;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3 {
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  letter-spacing: 2px;
+}
+
+/* Glassmorphism Panel Utility */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+}
+
+.glass-panel:hover {
+  border-color: var(--border-highlight);
+  box-shadow: 0 8px 32px 0 rgba(0, 255, 255, 0.2);
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-pixel);
+  background: var(--btn-bg);
+  border: 2px solid var(--btn-border);
+  color: var(--btn-text);
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  border-radius: 6px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+button:hover {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+/* Inputs */
+input, select {
+  font-family: var(--font-pixel);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.8rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+input:focus, select:focus {
+  border-color: var(--border-highlight);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.monster-image {
+  animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 15px rgba(255, 0, 255, 0.4));
+  transition: filter 0.3s;
+}
+
+.monster-image:hover {
+  filter: drop-shadow(0 0 25px rgba(0, 255, 255, 0.8));
+}
+
+/* Level Up Effect */
+.level-up-effect {
+  animation: pulse 0.5s ease-in-out 3;
+  filter: brightness(1.5) drop-shadow(0 0 30px #ffff00);
+}
+
+/* EXP Bar */
+.exp-bar-container {
+  width: 100%;
+  height: 12px;
+  background: var(--exp-bar-bg);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  margin-top: 10px;
+}
+
+.exp-bar-fill {
+  height: 100%;
+  background: var(--exp-bar-fill);
+  width: 0%;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
+}
