@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import './index.css';
 
-type MuscleType = 'chest' | 'back' | 'legs' | 'abs';
+type MuscleType = 'chest' | 'back' | 'legs' | 'abs' | 'shoulder' | 'arms' | 'glutes';
 
 interface MuscleStats {
   level: number;
   exp: number;
-  lastTrainedAt?: number; // タイムスタンプ
+  lastTrainedAt?: number;
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -18,18 +18,36 @@ interface ExerciseDef {
 }
 
 const EXERCISES: ExerciseDef[] = [
+  // 胸 (Chest)
   { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
   { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest' },
   { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
   { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
+  // 背中 (Back)
   { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back' },
   { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
   { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
   { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
+  // 肩 (Shoulder)
+  { id: 'back_press', name: 'バックプレス', targetMuscle: 'shoulder' },
+  { id: 'shoulder_press', name: 'ショルダープレス', targetMuscle: 'shoulder' },
+  { id: 'side_raise', name: 'サイドレイズ', targetMuscle: 'shoulder' },
+  { id: 'front_raise', name: 'フロントレイズ', targetMuscle: 'shoulder' },
+  // 腕 (Arms)
+  { id: 'arm_curl', name: 'アームカール', targetMuscle: 'arms' },
+  { id: 'french_press', name: 'フレンチプレス', targetMuscle: 'arms' },
+  { id: 'kick_back', name: 'キックバック', targetMuscle: 'arms' },
+  { id: 'dips', name: 'ディップス', targetMuscle: 'arms' },
+  // お尻 (Glutes)
+  { id: 'hip_thrust', name: 'ヒップスラスト', targetMuscle: 'glutes' },
+  { id: 'back_kick', name: 'バックキック', targetMuscle: 'glutes' },
+  { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', targetMuscle: 'glutes' },
+  // 脚 (Legs)
   { id: 'squat', name: 'スクワット', targetMuscle: 'legs' },
   { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
   { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
   { id: 'lunge', name: 'ランジ', targetMuscle: 'legs' },
+  // 腹 (Abs)
   { id: 'crunch', name: 'クランチ', targetMuscle: 'abs' },
   { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'abs' },
   { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
@@ -39,6 +57,9 @@ const EXERCISES: ExerciseDef[] = [
 const INITIAL_STATE: AppState = {
   chest: { level: 1, exp: 0 },
   back: { level: 1, exp: 0 },
+  shoulder: { level: 1, exp: 0 },
+  arms: { level: 1, exp: 0 },
+  glutes: { level: 1, exp: 0 },
   legs: { level: 1, exp: 0 },
   abs: { level: 1, exp: 0 },
 };
@@ -46,6 +67,9 @@ const INITIAL_STATE: AppState = {
 const MUSCLE_NAMES: Record<MuscleType, string> = {
   chest: '大胸筋モン',
   back: '広背筋モン',
+  shoulder: '肩モン',
+  arms: '腕モン',
+  glutes: 'お尻モン',
   legs: '四頭筋モン',
   abs: '腹直筋モン'
 };
@@ -65,7 +89,12 @@ function getEvolutionPhase(level: number): 1 | 2 | 3 {
 function App() {
   const [stats, setStats] = useState<AppState>(() => {
     const saved = localStorage.getItem('muscleStats');
-    return saved ? JSON.parse(saved) : INITIAL_STATE;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Ensure new muscles exist in old save data
+      return { ...INITIAL_STATE, ...parsed };
+    }
+    return INITIAL_STATE;
   });
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
@@ -78,7 +107,6 @@ function App() {
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
 
-  // 起動時のサボり（ディトレーニング）チェック
   useEffect(() => {
     const now = Date.now();
     let hasChanges = false;
@@ -89,12 +117,10 @@ function App() {
       const mStat = newStats[muscle];
       if (mStat.lastTrainedAt && (now - mStat.lastTrainedAt > DETRAIN_THRESHOLD_MS)) {
         if (mStat.exp > 0) {
-          // マイルドなペナルティ: 現在のEXPの半分を失う
           mStat.exp = Math.floor(mStat.exp / 2);
           hasChanges = true;
           droppedMuscles.push(MUSCLE_NAMES[muscle]);
         }
-        // アラートを再度出さないよう、チェック時刻をリセット
         mStat.lastTrainedAt = now;
       }
     });
@@ -103,7 +129,7 @@ function App() {
       setStats(newStats);
       setDetrainAlert(droppedMuscles);
     }
-  }, []); // 初回のみ実行
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('muscleStats', JSON.stringify(stats));
@@ -122,9 +148,8 @@ function App() {
     const s = Number(sets);
     const volume = w * r * s;
     
-    let gainedExp = Math.max(1, Math.floor(volume / 10)); // 基本EXP
+    let gainedExp = Math.max(1, Math.floor(volume / 10));
 
-    // 筋肥大理論ボーナス: 8〜12回、3〜5セット
     const isBestPump = (r >= 8 && r <= 12 && s >= 3 && s <= 5);
     if (isBestPump) {
       gainedExp = Math.floor(gainedExp * 1.5);
@@ -191,7 +216,7 @@ function App() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
         {(Object.keys(stats) as MuscleType[]).map(muscle => {
           const mStats = stats[muscle];
           const reqExp = getRequiredExp(mStats.level);
@@ -209,10 +234,10 @@ function App() {
                 </div>
               )}
 
-              <h3>{MUSCLE_NAMES[muscle]}</h3>
-              <p style={{ color: 'var(--border-highlight)', margin: '0.5rem 0', fontSize: '1.2rem' }}>Lv.{mStats.level}</p>
+              <h3 style={{ fontSize: '1.1rem' }}>{MUSCLE_NAMES[muscle]}</h3>
+              <p style={{ color: 'var(--border-highlight)', margin: '0.2rem 0', fontSize: '1rem' }}>Lv.{mStats.level}</p>
               
-              <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1rem 0' }}>
+              <div style={{ height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
                 <img 
                   src={`/assets/${muscle}_${phase}.png`} 
                   alt={muscle} 
@@ -221,8 +246,8 @@ function App() {
                 />
               </div>
 
-              <div style={{ width: '100%', fontSize: '0.9rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+              <div style={{ width: '100%', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
                   <span>EXP</span>
                   <span>{mStats.exp} / {reqExp}</span>
                 </div>
