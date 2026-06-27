@@ -98,7 +98,7 @@ const EXERCISES: ExerciseDef[] = [
   
   // 腹直筋 (Abs)
   { id: 'crunch', name: 'クランチ', targetMuscle: 'abs', isBodyweight: true },
-  { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
+  { id: 'ab_roller', name: '腹筋ローラー (アブローラー)', targetMuscle: 'abs', isBodyweight: true },
   
   // 腹斜筋 (Obliques)
   { id: 'side_crunch', name: 'サイドクランチ', targetMuscle: 'obliques', isBodyweight: true },
