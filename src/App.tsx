@@ -370,8 +370,8 @@ function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
-      <header style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-        <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>マッスルモンスターズ</h1>
+      <header style={{ textAlign: 'center', margin: '0 0 0.5rem 0' }}>
+        <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)', margin: '0 0 0.5rem 0', lineHeight: '1.2' }}>マッスル<br/>モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)' }}>筋トレを記録して筋肉を育てよう！</p>
       </header>
 
