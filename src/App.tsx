@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { ActivityCalendar } from 'react-activity-calendar';
+import { Tooltip } from 'react-tooltip';
+import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
 
 type MuscleType = 
@@ -327,6 +330,44 @@ function App() {
     setEvolutionAlert(null);
   };
 
+  // カレンダー用のデータを生成する関数
+  const generateCalendarData = () => {
+    const dataMap = new Map<string, number>();
+    
+    trainingLogs.forEach(log => {
+      const d = new Date(log.timestamp);
+      // ローカルタイムで YYYY-MM-DD 形式の文字列を作成
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dataMap.set(dateStr, (dataMap.get(dateStr) || 0) + log.gainedExp);
+    });
+
+    // 直近180日分（約半年）のカレンダー枠を作成
+    const daysToShow = 180;
+    const result = [];
+    const today = new Date();
+    
+    for (let i = daysToShow - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      const exp = dataMap.get(dateStr) || 0;
+      
+      let level = 0;
+      if (exp > 0) level = 1;
+      if (exp >= 50) level = 2;
+      if (exp >= 150) level = 3;
+      if (exp >= 300) level = 4;
+
+      result.push({
+        date: dateStr,
+        count: exp,
+        level: level
+      });
+    }
+    return result;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
       <header style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
@@ -494,10 +535,39 @@ function App() {
       {activeTab === 'logs' && (
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 トレーニング履歴</h2>
+          
+          {/* 草カレンダー */}
+          <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <ActivityCalendar 
+              data={generateCalendarData()} 
+              theme={{
+                light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
+                dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
+              }}
+              colorScheme="dark"
+              labels={{
+                legend: { less: '休養', more: '猛烈' },
+                months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                totalCount: '直近約半年の合計獲得EXP: {{count}}',
+              }}
+              renderBlock={(block: any, activity: any) => (
+                <div 
+                  {...block} 
+                  data-tooltip-id="calendar-tooltip" 
+                  data-tooltip-content={`${activity.date}: ${activity.count} EXP獲得`} 
+                />
+              )}
+            />
+            <Tooltip id="calendar-tooltip" />
+          </div>
+
+          <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+            最近の記録
+          </h3>
           {trainingLogs.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>まだ記録がありません。トレーニングを開始しましょう！</p>
           ) : (
-            <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
               {trainingLogs.map(log => (
                 <div key={log.id} style={{ 
                   background: 'rgba(255,255,255,0.05)', 

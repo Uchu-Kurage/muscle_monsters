@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-activity-calendar": "^3.2.0",
+    "react-dom": "^19.2.7",
+    "react-tooltip": "^6.0.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
