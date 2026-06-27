@@ -381,7 +381,7 @@ function App() {
           className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} 
           onClick={() => setActiveTab('characters')}
         >
-          👾 キャラクター
+          👾 マスモン
         </button>
         <button 
           className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} 
