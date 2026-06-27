@@ -21,6 +21,17 @@ interface ExerciseDef {
   isBodyweight?: boolean;
 }
 
+interface TrainingLog {
+  id: string;
+  timestamp: number;
+  exerciseName: string;
+  weight: number;
+  reps: number;
+  sets: number;
+  isBodyweight: boolean;
+  gainedExp: number;
+}
+
 const EXERCISES: ExerciseDef[] = [
   // 胸 (Chest)
   { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
@@ -142,6 +153,15 @@ function getEvolutionPhase(level: number): 1 | 2 | 3 {
   return 3;
 }
 
+function formatDate(ms: number): string {
+  const date = new Date(ms);
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const hh = date.getHours().toString().padStart(2, '0');
+  const mm = date.getMinutes().toString().padStart(2, '0');
+  return `${m}/${d} ${hh}:${mm}`;
+}
+
 function App() {
   const [stats, setStats] = useState<AppState>(() => {
     const saved = localStorage.getItem('muscleStats');
@@ -155,6 +175,11 @@ function App() {
   const [bodyWeight, setBodyWeight] = useState<number>(() => {
     const saved = localStorage.getItem('userBodyWeight');
     return saved ? Number(saved) : 60;
+  });
+
+  const [trainingLogs, setTrainingLogs] = useState<TrainingLog[]>(() => {
+    const saved = localStorage.getItem('trainingLogs');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
@@ -198,6 +223,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('userBodyWeight', bodyWeight.toString());
   }, [bodyWeight]);
+
+  useEffect(() => {
+    localStorage.setItem('trainingLogs', JSON.stringify(trainingLogs));
+  }, [trainingLogs]);
 
   const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
   const isBodyweight = selectedExercise?.isBodyweight || false;
@@ -257,6 +286,19 @@ function App() {
         }
       };
     });
+
+    const newLog: TrainingLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now(),
+      exerciseName: selectedExercise.name,
+      weight: w,
+      reps: r,
+      sets: s,
+      isBodyweight: isBodyweight,
+      gainedExp: gainedExp
+    };
+
+    setTrainingLogs(prev => [newLog, ...prev]);
 
     if (!isBodyweight) {
       setWeight('');
@@ -385,6 +427,50 @@ function App() {
           ※ 8〜12回、3〜5セットで記録すると「ベスト・パンプ！」が発生しEXPボーナス！
         </p>
       </div>
+
+      {/* トレーニング履歴セクション */}
+      {trainingLogs.length > 0 && (
+        <div className="glass-panel" style={{ marginTop: '2rem' }}>
+          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 最近のトレーニング履歴</h2>
+          <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '10px' }}>
+            {trainingLogs.map(log => (
+              <div key={log.id} style={{ 
+                background: 'rgba(255,255,255,0.05)', 
+                padding: '1rem', 
+                borderRadius: '8px', 
+                marginBottom: '1rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    {formatDate(log.timestamp)}
+                  </div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                    {log.exerciseName}
+                  </div>
+                  <div style={{ fontSize: '0.95rem', marginTop: '4px' }}>
+                    {log.isBodyweight ? `自重(${log.weight}kg)` : `${log.weight}kg`} × {log.reps}回 × {log.sets}セット
+                  </div>
+                </div>
+                <div style={{ 
+                  background: 'rgba(57, 255, 20, 0.1)', 
+                  color: 'var(--text-accent)', 
+                  padding: '8px 12px', 
+                  borderRadius: '16px',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}>
+                  +{log.gainedExp} EXP
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Evolution Modal Overlay */}
       {evolutionAlert && (
