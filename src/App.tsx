@@ -10,6 +10,35 @@ interface MuscleStats {
 
 type AppState = Record<MuscleType, MuscleStats>;
 
+interface ExerciseDef {
+  id: string;
+  name: string;
+  targetMuscle: MuscleType;
+}
+
+const EXERCISES: ExerciseDef[] = [
+  // 胸 (Chest)
+  { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
+  { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest' },
+  { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
+  { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
+  // 背中 (Back)
+  { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back' },
+  { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
+  { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
+  { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
+  // 脚 (Legs)
+  { id: 'squat', name: 'スクワット', targetMuscle: 'legs' },
+  { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
+  { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
+  { id: 'lunge', name: 'ランジ', targetMuscle: 'legs' },
+  // 腹 (Abs)
+  { id: 'crunch', name: 'クランチ', targetMuscle: 'abs' },
+  { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'abs' },
+  { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
+  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'abs' },
+];
+
 const INITIAL_STATE: AppState = {
   chest: { level: 1, exp: 0 },
   back: { level: 1, exp: 0 },
@@ -40,7 +69,7 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_STATE;
   });
 
-  const [selectedMuscle, setSelectedMuscle] = useState<MuscleType>('chest');
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
   const [weight, setWeight] = useState<number | ''>('');
   const [reps, setReps] = useState<number | ''>('');
   const [sets, setSets] = useState<number | ''>('');
@@ -56,12 +85,17 @@ function App() {
     e.preventDefault();
     if (weight === '' || reps === '' || sets === '') return;
 
+    const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
+    if (!selectedExercise) return;
+
+    const targetMuscle = selectedExercise.targetMuscle;
+
     const w = weight === 0 ? 1 : Number(weight);
     const volume = w * Number(reps) * Number(sets);
     const gainedExp = Math.max(1, Math.floor(volume / 10)); // 10 volume = 1 exp
 
     setStats(prev => {
-      const current = prev[selectedMuscle];
+      const current = prev[targetMuscle];
       let newExp = current.exp + gainedExp;
       let newLevel = current.level;
       let didLevelUp = false;
@@ -77,16 +111,16 @@ function App() {
         const newPhase = getEvolutionPhase(newLevel);
 
         if (newPhase > oldPhase) {
-          setEvolutionAlert({ muscle: selectedMuscle, phase: newPhase });
+          setEvolutionAlert({ muscle: targetMuscle, phase: newPhase });
         } else {
-          setLevelUpEffect(selectedMuscle);
+          setLevelUpEffect(targetMuscle);
           setTimeout(() => setLevelUpEffect(null), 1500);
         }
       }
 
       return {
         ...prev,
-        [selectedMuscle]: { level: newLevel, exp: newExp }
+        [targetMuscle]: { level: newLevel, exp: newExp }
       };
     });
 
@@ -145,13 +179,15 @@ function App() {
       <div className="glass-panel" style={{ marginTop: '2rem' }}>
         <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレ記録</h2>
         <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label>鍛えた筋肉</label>
-            <select value={selectedMuscle} onChange={e => setSelectedMuscle(e.target.value as MuscleType)}>
-              <option value="chest">大胸筋</option>
-              <option value="back">広背筋</option>
-              <option value="legs">大腿四頭筋</option>
-              <option value="abs">腹直筋</option>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '220px' }}>
+            <label>トレーニング種目</label>
+            <select value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)}>
+              {EXERCISES.map(ex => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.name}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -161,7 +197,7 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
-            <label>回数</label>
+            <label>回数/秒数</label>
             <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
           </div>
 
