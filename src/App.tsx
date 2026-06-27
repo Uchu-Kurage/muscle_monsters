@@ -24,16 +24,14 @@ const MUSCLE_NAMES: Record<MuscleType, string> = {
   abs: '腹直筋モン'
 };
 
-const MUSCLE_IMAGES: Record<MuscleType, string> = {
-  chest: '/assets/chest.png',
-  back: '/assets/back.png',
-  legs: '/assets/legs.png',
-  abs: '/assets/abs.png'
-};
-
 function getRequiredExp(level: number) {
-  // レベルが上がるごとに必要な経験値が増える
   return level * 100;
+}
+
+function getEvolutionPhase(level: number): 1 | 2 | 3 {
+  if (level < 5) return 1;
+  if (level < 10) return 2;
+  return 3;
 }
 
 function App() {
@@ -48,6 +46,7 @@ function App() {
   const [sets, setSets] = useState<number | ''>('');
 
   const [levelUpEffect, setLevelUpEffect] = useState<MuscleType | null>(null);
+  const [evolutionAlert, setEvolutionAlert] = useState<{ muscle: MuscleType, phase: number } | null>(null);
 
   useEffect(() => {
     localStorage.setItem('muscleStats', JSON.stringify(stats));
@@ -57,10 +56,9 @@ function App() {
     e.preventDefault();
     if (weight === '' || reps === '' || sets === '') return;
 
-    // 自重の場合は0kg入力も許容し、1kg相当で計算するか、回数×セットで固定値にする
     const w = weight === 0 ? 1 : Number(weight);
     const volume = w * Number(reps) * Number(sets);
-    const gainedExp = Math.max(1, Math.floor(volume / 10)); // 10ボリューム = 1EXP
+    const gainedExp = Math.max(1, Math.floor(volume / 10)); // 10 volume = 1 exp
 
     setStats(prev => {
       const current = prev[selectedMuscle];
@@ -75,8 +73,15 @@ function App() {
       }
 
       if (didLevelUp) {
-        setLevelUpEffect(selectedMuscle);
-        setTimeout(() => setLevelUpEffect(null), 1500);
+        const oldPhase = getEvolutionPhase(current.level);
+        const newPhase = getEvolutionPhase(newLevel);
+
+        if (newPhase > oldPhase) {
+          setEvolutionAlert({ muscle: selectedMuscle, phase: newPhase });
+        } else {
+          setLevelUpEffect(selectedMuscle);
+          setTimeout(() => setLevelUpEffect(null), 1500);
+        }
       }
 
       return {
@@ -90,11 +95,15 @@ function App() {
     setSets('');
   };
 
+  const closeEvolutionAlert = () => {
+    setEvolutionAlert(null);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
       <header style={{ textAlign: 'center', marginBottom: '1rem' }}>
         <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)' }}>マッスルモンスターズ</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>筋トレを記録してモンスターを育てよう！</p>
+        <p style={{ color: 'var(--text-secondary)' }}>筋トレを記録して筋肉を育てよう！</p>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
@@ -103,6 +112,7 @@ function App() {
           const reqExp = getRequiredExp(mStats.level);
           const progress = (mStats.exp / reqExp) * 100;
           const isLevelingUp = levelUpEffect === muscle;
+          const phase = getEvolutionPhase(mStats.level);
 
           return (
             <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -111,7 +121,7 @@ function App() {
               
               <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1rem 0' }}>
                 <img 
-                  src={MUSCLE_IMAGES[muscle]} 
+                  src={`/assets/${muscle}_${phase}.png`} 
                   alt={muscle} 
                   className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
                   style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
@@ -163,6 +173,26 @@ function App() {
           <button type="submit" style={{ height: '45px', marginLeft: '1rem' }}>記録する</button>
         </form>
       </div>
+
+      {/* Evolution Modal Overlay */}
+      {evolutionAlert && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
+            <h1 style={{ color: '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>進化！！</h1>
+            <p style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
+              おめでとう！<br/>{MUSCLE_NAMES[evolutionAlert.muscle]} は 第{evolutionAlert.phase}形態 に進化した！
+            </p>
+            <img 
+              src={`/assets/${evolutionAlert.muscle}_${evolutionAlert.phase}.png`} 
+              alt="Evolved Muscle" 
+              className="monster-image"
+              style={{ maxHeight: '250px', maxWidth: '100%', objectFit: 'contain', marginBottom: '2rem' }}
+            />
+            <br />
+            <button onClick={closeEvolutionAlert} style={{ width: '100%', maxWidth: '200px' }}>閉じる</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
