@@ -32,6 +32,14 @@ interface TrainingLog {
   gainedExp: number;
 }
 
+const MUSCLE_GROUPS = [
+  { id: 'chest', title: '🛡️ 胸部', muscles: ['chest'] as MuscleType[] },
+  { id: 'back', title: '🦅 背部', muscles: ['back', 'trapezius', 'erector_spinae', 'rhomboids'] as MuscleType[] },
+  { id: 'shoulder_arms', title: '💪 肩・腕', muscles: ['shoulder', 'arms'] as MuscleType[] },
+  { id: 'abs_core', title: '🔥 腹・体幹', muscles: ['abs', 'obliques', 'iliopsoas', 'transversus_abdominis'] as MuscleType[] },
+  { id: 'legs_glutes', title: '🦵 脚・お尻', muscles: ['legs', 'hamstrings', 'glutes', 'gluteus_medius'] as MuscleType[] },
+];
+
 const EXERCISES: ExerciseDef[] = [
   // 胸 (Chest)
   { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
@@ -327,63 +335,71 @@ function App() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
-        {(Object.keys(stats) as MuscleType[]).map(muscle => {
-          const mStats = stats[muscle];
-          const reqExp = getRequiredExp(mStats.level);
-          const progress = (mStats.exp / reqExp) * 100;
-          const isLevelingUp = levelUpEffect === muscle;
-          const isBestPump = bestPumpAlert === muscle;
-          const phase = getEvolutionPhase(mStats.level);
+      {/* グループごとの表示 */}
+      {MUSCLE_GROUPS.map(group => (
+        <div key={group.id} style={{ marginBottom: '1rem' }}>
+          <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+            {group.title}
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem' }}>
+            {group.muscles.map(muscle => {
+              const mStats = stats[muscle];
+              const reqExp = getRequiredExp(mStats.level);
+              const progress = (mStats.exp / reqExp) * 100;
+              const isLevelingUp = levelUpEffect === muscle;
+              const isBestPump = bestPumpAlert === muscle;
+              const phase = getEvolutionPhase(mStats.level);
 
-          return (
-            <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '1rem' }}>
-              
-              {isBestPump && (
-                <div className="best-pump-badge" style={{ fontSize: '1rem', padding: '2px 10px', top: '5px' }}>
-                  BEST PUMP!!<br/><small>EXP x1.5</small>
+              return (
+                <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem' }}>
+                  
+                  {isBestPump && (
+                    <div className="best-pump-badge" style={{ fontSize: '0.8rem', padding: '2px 6px', top: '2px' }}>
+                      PUMP!<br/>x1.5
+                    </div>
+                  )}
+
+                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{MUSCLE_NAMES[muscle]}</h3>
+                  <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
+                  
+                  <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
+                    <img 
+                      src={`/assets/${muscle}_${phase}.png`} 
+                      alt={muscle} 
+                      className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
+                      style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+
+                  <div style={{ width: '100%', fontSize: '0.7rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>EXP</span>
+                      <span>{mStats.exp}/{reqExp}</span>
+                    </div>
+                    <div className="exp-bar-container" style={{ height: '6px' }}>
+                      <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
+                    </div>
+                  </div>
                 </div>
-              )}
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
-              <h3 style={{ fontSize: '1rem' }}>{MUSCLE_NAMES[muscle]}</h3>
-              <p style={{ color: 'var(--border-highlight)', margin: '0.2rem 0', fontSize: '0.9rem' }}>Lv.{mStats.level}</p>
-              
-              <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
-                <img 
-                  src={`/assets/${muscle}_${phase}.png`} 
-                  alt={muscle} 
-                  className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
-                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
-                />
-              </div>
-
-              <div style={{ width: '100%', fontSize: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                  <span>EXP</span>
-                  <span>{mStats.exp} / {reqExp}</span>
-                </div>
-                <div className="exp-bar-container" style={{ height: '8px' }}>
-                  <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="glass-panel" style={{ marginTop: '2rem' }}>
+      <div className="glass-panel" style={{ marginTop: '1rem' }}>
         <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレ記録</h2>
         
         {/* 体重設定セクション */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-          <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>あなたの体重設定 (自重用):</label>
+          <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>体重設定 (自重用):</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <input 
               type="number" 
               min="1" 
               value={bodyWeight} 
               onChange={e => setBodyWeight(Number(e.target.value) || 60)} 
-              style={{ width: '80px', padding: '5px' }}
+              style={{ width: '70px', padding: '5px' }}
             />
             <span>kg</span>
           </div>
@@ -391,7 +407,7 @@ function App() {
 
         <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '220px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '300px' }}>
             <label>トレーニング種目</label>
             <select value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)}>
               {EXERCISES.map(ex => (
@@ -402,29 +418,31 @@ function App() {
             </select>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
-            <label>重量 (kg)</label>
-            {isBodyweight ? (
-               <input type="text" value={`自重(${bodyWeight}kg)`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center' }} />
-            ) : (
-              <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
-            )}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+              <label style={{ fontSize: '0.8rem' }}>重量 (kg)</label>
+              {isBodyweight ? (
+                <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.8rem', padding: '0' }} />
+              ) : (
+                <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+              <label style={{ fontSize: '0.8rem' }}>回数/秒数</label>
+              <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+              <label style={{ fontSize: '0.8rem' }}>セット数</label>
+              <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required />
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
-            <label>回数/秒数</label>
-            <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
-            <label>セット数</label>
-            <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required />
-          </div>
-
-          <button type="submit" style={{ height: '45px', marginLeft: '1rem' }}>記録する</button>
+          <button type="submit" style={{ height: '45px', width: '100%', maxWidth: '300px', marginTop: '1rem' }}>記録する</button>
         </form>
-        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
-          ※ 8〜12回、3〜5セットで記録すると「ベスト・パンプ！」が発生しEXPボーナス！
+        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
+          ※ 8〜12回、3〜5セットで記録すると「PUMP!」ボーナス！
         </p>
       </div>
 
