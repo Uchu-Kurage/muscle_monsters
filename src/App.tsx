@@ -18,17 +18,18 @@ interface ExerciseDef {
   id: string;
   name: string;
   targetMuscle: MuscleType;
+  isBodyweight?: boolean;
 }
 
 const EXERCISES: ExerciseDef[] = [
   // 胸 (Chest)
   { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
-  { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest' },
+  { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest', isBodyweight: true },
   { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
   { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
   
   // 背中 (Back)
-  { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back' },
+  { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back', isBodyweight: true },
   { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
   { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
   { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
@@ -42,7 +43,7 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'one_hand_row', name: 'ワンハンドロウ', targetMuscle: 'rhomboids' },
   
   // 脊柱起立筋 (Erector Spinae)
-  { id: 'back_extension', name: 'バックエクステンション', targetMuscle: 'erector_spinae' },
+  { id: 'back_extension', name: 'バックエクステンション', targetMuscle: 'erector_spinae', isBodyweight: true },
   { id: 'good_morning', name: 'グッドモーニング', targetMuscle: 'erector_spinae' },
   
   // 肩 (Shoulder)
@@ -55,42 +56,42 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'arm_curl', name: 'アームカール', targetMuscle: 'arms' },
   { id: 'french_press', name: 'フレンチプレス', targetMuscle: 'arms' },
   { id: 'kick_back', name: 'キックバック', targetMuscle: 'arms' },
-  { id: 'dips', name: 'ディップス', targetMuscle: 'arms' },
+  { id: 'dips', name: 'ディップス', targetMuscle: 'arms', isBodyweight: true },
   
   // お尻 (Glutes)
   { id: 'hip_thrust', name: 'ヒップスラスト', targetMuscle: 'glutes' },
-  { id: 'back_kick', name: 'バックキック', targetMuscle: 'glutes' },
-  { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', targetMuscle: 'glutes' },
+  { id: 'back_kick', name: 'バックキック', targetMuscle: 'glutes', isBodyweight: true },
+  { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', targetMuscle: 'glutes', isBodyweight: true },
   
   // 中殿筋 (Gluteus Medius)
   { id: 'abduction', name: 'アブダクション', targetMuscle: 'gluteus_medius' },
-  { id: 'clamshell', name: 'クラムシェル', targetMuscle: 'gluteus_medius' },
+  { id: 'clamshell', name: 'クラムシェル', targetMuscle: 'gluteus_medius', isBodyweight: true },
   
   // 脚 (Legs)
-  { id: 'squat', name: 'スクワット', targetMuscle: 'legs' },
+  { id: 'squat', name: 'スクワット', targetMuscle: 'legs', isBodyweight: true },
   { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
   { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
-  { id: 'lunge', name: 'ランジ', targetMuscle: 'legs' },
+  { id: 'lunge', name: 'ランジ', targetMuscle: 'legs', isBodyweight: true },
   
   // ハムストリングス (Hamstrings)
   { id: 'leg_curl', name: 'レッグカール', targetMuscle: 'hamstrings' },
   { id: 'romanian_deadlift', name: 'ルーマニアンデッドリフト', targetMuscle: 'hamstrings' },
   
   // 腹直筋 (Abs)
-  { id: 'crunch', name: 'クランチ', targetMuscle: 'abs' },
+  { id: 'crunch', name: 'クランチ', targetMuscle: 'abs', isBodyweight: true },
   { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
   
   // 腹斜筋 (Obliques)
-  { id: 'side_crunch', name: 'サイドクランチ', targetMuscle: 'obliques' },
-  { id: 'russian_twist', name: 'ロシアンツイスト', targetMuscle: 'obliques' },
+  { id: 'side_crunch', name: 'サイドクランチ', targetMuscle: 'obliques', isBodyweight: true },
+  { id: 'russian_twist', name: 'ロシアンツイスト', targetMuscle: 'obliques', isBodyweight: true },
   
   // 腸腰筋 (Iliopsoas)
-  { id: 'bicycle_crunch', name: 'バイシクルクランチ', targetMuscle: 'iliopsoas' },
-  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'iliopsoas' },
+  { id: 'bicycle_crunch', name: 'バイシクルクランチ', targetMuscle: 'iliopsoas', isBodyweight: true },
+  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'iliopsoas', isBodyweight: true },
   
   // 腹横筋 (Transversus Abdominis)
-  { id: 'draw_in', name: 'ドローイン (重量1kg/回数=秒数)', targetMuscle: 'transversus_abdominis' },
-  { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'transversus_abdominis' },
+  { id: 'draw_in', name: 'ドローイン (自重設定)', targetMuscle: 'transversus_abdominis', isBodyweight: true },
+  { id: 'plank', name: 'プランク (自重設定)', targetMuscle: 'transversus_abdominis', isBodyweight: true },
 ];
 
 const INITIAL_STATE: AppState = {
@@ -146,10 +147,14 @@ function App() {
     const saved = localStorage.getItem('muscleStats');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Ensure new muscles exist in old save data
       return { ...INITIAL_STATE, ...parsed };
     }
     return INITIAL_STATE;
+  });
+
+  const [bodyWeight, setBodyWeight] = useState<number>(() => {
+    const saved = localStorage.getItem('userBodyWeight');
+    return saved ? Number(saved) : 60;
   });
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
@@ -190,19 +195,26 @@ function App() {
     localStorage.setItem('muscleStats', JSON.stringify(stats));
   }, [stats]);
 
+  useEffect(() => {
+    localStorage.setItem('userBodyWeight', bodyWeight.toString());
+  }, [bodyWeight]);
+
+  const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
+  const isBodyweight = selectedExercise?.isBodyweight || false;
+
   const handleRecord = (e: React.FormEvent) => {
     e.preventDefault();
-    if (weight === '' || reps === '' || sets === '') return;
-
-    const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
     if (!selectedExercise) return;
-
-    const targetMuscle = selectedExercise.targetMuscle;
-    const w = weight === 0 ? 1 : Number(weight);
+    
+    // 自重の場合は体重、そうでなければ入力された重量（空なら1）
+    const w = isBodyweight ? bodyWeight : (weight === '' || weight === 0 ? 1 : Number(weight));
     const r = Number(reps);
     const s = Number(sets);
-    const volume = w * r * s;
     
+    if (r === 0 || s === 0) return;
+
+    const volume = w * r * s;
+    const targetMuscle = selectedExercise.targetMuscle;
     let gainedExp = Math.max(1, Math.floor(volume / 10));
 
     const isBestPump = (r >= 8 && r <= 12 && s >= 3 && s <= 5);
@@ -246,7 +258,9 @@ function App() {
       };
     });
 
-    setWeight('');
+    if (!isBodyweight) {
+      setWeight('');
+    }
     setReps('');
     setSets('');
   };
@@ -317,6 +331,22 @@ function App() {
 
       <div className="glass-panel" style={{ marginTop: '2rem' }}>
         <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレ記録</h2>
+        
+        {/* 体重設定セクション */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+          <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>あなたの体重設定 (自重用):</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input 
+              type="number" 
+              min="1" 
+              value={bodyWeight} 
+              onChange={e => setBodyWeight(Number(e.target.value) || 60)} 
+              style={{ width: '80px', padding: '5px' }}
+            />
+            <span>kg</span>
+          </div>
+        </div>
+
         <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '220px' }}>
@@ -332,7 +362,11 @@ function App() {
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
             <label>重量 (kg)</label>
-            <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
+            {isBodyweight ? (
+               <input type="text" value={`自重(${bodyWeight}kg)`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center' }} />
+            ) : (
+              <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
