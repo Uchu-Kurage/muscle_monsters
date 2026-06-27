@@ -6,6 +6,7 @@ type MuscleType = 'chest' | 'back' | 'legs' | 'abs';
 interface MuscleStats {
   level: number;
   exp: number;
+  lastTrainedAt?: number; // タイムスタンプ
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -17,22 +18,18 @@ interface ExerciseDef {
 }
 
 const EXERCISES: ExerciseDef[] = [
-  // 胸 (Chest)
   { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
   { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest' },
   { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
   { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
-  // 背中 (Back)
   { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back' },
   { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
   { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
   { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
-  // 脚 (Legs)
   { id: 'squat', name: 'スクワット', targetMuscle: 'legs' },
   { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
   { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
   { id: 'lunge', name: 'ランジ', targetMuscle: 'legs' },
-  // 腹 (Abs)
   { id: 'crunch', name: 'クランチ', targetMuscle: 'abs' },
   { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'abs' },
   { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
@@ -52,6 +49,8 @@ const MUSCLE_NAMES: Record<MuscleType, string> = {
   legs: '四頭筋モン',
   abs: '腹直筋モン'
 };
+
+const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
 
 function getRequiredExp(level: number) {
   return level * 100;
@@ -76,6 +75,35 @@ function App() {
 
   const [levelUpEffect, setLevelUpEffect] = useState<MuscleType | null>(null);
   const [evolutionAlert, setEvolutionAlert] = useState<{ muscle: MuscleType, phase: number } | null>(null);
+  const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
+  const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
+
+  // 起動時のサボり（ディトレーニング）チェック
+  useEffect(() => {
+    const now = Date.now();
+    let hasChanges = false;
+    const newStats = { ...stats };
+    const droppedMuscles: string[] = [];
+
+    (Object.keys(newStats) as MuscleType[]).map(muscle => {
+      const mStat = newStats[muscle];
+      if (mStat.lastTrainedAt && (now - mStat.lastTrainedAt > DETRAIN_THRESHOLD_MS)) {
+        if (mStat.exp > 0) {
+          // マイルドなペナルティ: 現在のEXPの半分を失う
+          mStat.exp = Math.floor(mStat.exp / 2);
+          hasChanges = true;
+          droppedMuscles.push(MUSCLE_NAMES[muscle]);
+        }
+        // アラートを再度出さないよう、チェック時刻をリセット
+        mStat.lastTrainedAt = now;
+      }
+    });
+
+    if (hasChanges) {
+      setStats(newStats);
+      setDetrainAlert(droppedMuscles);
+    }
+  }, []); // 初回のみ実行
 
   useEffect(() => {
     localStorage.setItem('muscleStats', JSON.stringify(stats));
@@ -89,10 +117,20 @@ function App() {
     if (!selectedExercise) return;
 
     const targetMuscle = selectedExercise.targetMuscle;
-
     const w = weight === 0 ? 1 : Number(weight);
-    const volume = w * Number(reps) * Number(sets);
-    const gainedExp = Math.max(1, Math.floor(volume / 10)); // 10 volume = 1 exp
+    const r = Number(reps);
+    const s = Number(sets);
+    const volume = w * r * s;
+    
+    let gainedExp = Math.max(1, Math.floor(volume / 10)); // 基本EXP
+
+    // 筋肥大理論ボーナス: 8〜12回、3〜5セット
+    const isBestPump = (r >= 8 && r <= 12 && s >= 3 && s <= 5);
+    if (isBestPump) {
+      gainedExp = Math.floor(gainedExp * 1.5);
+      setBestPumpAlert(targetMuscle);
+      setTimeout(() => setBestPumpAlert(null), 2500);
+    }
 
     setStats(prev => {
       const current = prev[targetMuscle];
@@ -120,7 +158,11 @@ function App() {
 
       return {
         ...prev,
-        [targetMuscle]: { level: newLevel, exp: newExp }
+        [targetMuscle]: { 
+          level: newLevel, 
+          exp: newExp, 
+          lastTrainedAt: Date.now() 
+        }
       };
     });
 
@@ -134,11 +176,20 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', paddingBottom: '2rem' }}>
       <header style={{ textAlign: 'center', marginBottom: '1rem' }}>
         <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)' }}>マッスルモンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)' }}>筋トレを記録して筋肉を育てよう！</p>
       </header>
+
+      {detrainAlert.length > 0 && (
+        <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center' }}>
+          <h3 style={{ color: '#ff4444' }}>⚠️ 筋肉ダウンのお知らせ</h3>
+          <p>14日間以上トレーニングをサボったため、以下の筋肉が落ちて（EXP半減）しまいました…</p>
+          <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{detrainAlert.join('、')}</p>
+          <button onClick={() => setDetrainAlert([])} style={{ borderColor: 'red', color: 'red', marginTop: '1rem' }}>確認した</button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
         {(Object.keys(stats) as MuscleType[]).map(muscle => {
@@ -146,10 +197,18 @@ function App() {
           const reqExp = getRequiredExp(mStats.level);
           const progress = (mStats.exp / reqExp) * 100;
           const isLevelingUp = levelUpEffect === muscle;
+          const isBestPump = bestPumpAlert === muscle;
           const phase = getEvolutionPhase(mStats.level);
 
           return (
-            <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+              
+              {isBestPump && (
+                <div className="best-pump-badge">
+                  BEST PUMP!!<br/><small>EXP x1.5</small>
+                </div>
+              )}
+
               <h3>{MUSCLE_NAMES[muscle]}</h3>
               <p style={{ color: 'var(--border-highlight)', margin: '0.5rem 0', fontSize: '1.2rem' }}>Lv.{mStats.level}</p>
               
@@ -208,6 +267,9 @@ function App() {
 
           <button type="submit" style={{ height: '45px', marginLeft: '1rem' }}>記録する</button>
         </form>
+        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
+          ※ 8〜12回、3〜5セットで記録すると「ベスト・パンプ！」が発生しEXPボーナス！
+        </p>
       </div>
 
       {/* Evolution Modal Overlay */}

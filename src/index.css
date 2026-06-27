@@ -138,6 +138,13 @@ input:focus, select:focus {
   to { transform: scale(1); opacity: 1; }
 }
 
+@keyframes popUp {
+  0% { transform: translate(-50%, 10px); opacity: 0; }
+  20% { transform: translate(-50%, -10px); opacity: 1; }
+  80% { transform: translate(-50%, -10px); opacity: 1; }
+  100% { transform: translate(-50%, -20px); opacity: 0; }
+}
+
 .monster-image {
   animation: float 3s ease-in-out infinite;
   filter: drop-shadow(0 0 15px rgba(255, 0, 255, 0.4));
@@ -193,4 +200,24 @@ input:focus, select:focus {
   width: 90%;
   border-color: #ffea00;
   box-shadow: 0 0 40px rgba(255, 234, 0, 0.3);
+}
+
+/* Best Pump Badge */
+.best-pump-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(45deg, #ff00ff, #ff8c00);
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  animation: popUp 2.5s ease-in-out forwards;
+  z-index: 10;
+  box-shadow: 0 0 20px rgba(255, 0, 255, 0.8);
+  pointer-events: none;
 }
