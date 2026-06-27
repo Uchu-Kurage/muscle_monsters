@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import './index.css';
 
-type MuscleType = 'chest' | 'back' | 'legs' | 'abs' | 'shoulder' | 'arms' | 'glutes';
+type MuscleType = 
+  | 'chest' | 'back' | 'shoulder' | 'arms' | 'glutes' | 'legs' | 'abs'
+  | 'obliques' | 'iliopsoas' | 'transversus_abdominis'
+  | 'trapezius' | 'erector_spinae' | 'hamstrings' | 'rhomboids' | 'gluteus_medius';
 
 interface MuscleStats {
   level: number;
@@ -23,35 +26,71 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest' },
   { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
   { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
+  
   // 背中 (Back)
   { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back' },
   { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
   { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
   { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
+  
+  // 僧帽筋 (Trapezius)
+  { id: 'shrug', name: 'シュラッグ', targetMuscle: 'trapezius' },
+  { id: 'upright_row', name: 'アップライトロウ', targetMuscle: 'trapezius' },
+  
+  // 菱形筋 (Rhomboids)
+  { id: 'seated_row', name: 'シーテッドロウ', targetMuscle: 'rhomboids' },
+  { id: 'one_hand_row', name: 'ワンハンドロウ', targetMuscle: 'rhomboids' },
+  
+  // 脊柱起立筋 (Erector Spinae)
+  { id: 'back_extension', name: 'バックエクステンション', targetMuscle: 'erector_spinae' },
+  { id: 'good_morning', name: 'グッドモーニング', targetMuscle: 'erector_spinae' },
+  
   // 肩 (Shoulder)
   { id: 'back_press', name: 'バックプレス', targetMuscle: 'shoulder' },
   { id: 'shoulder_press', name: 'ショルダープレス', targetMuscle: 'shoulder' },
   { id: 'side_raise', name: 'サイドレイズ', targetMuscle: 'shoulder' },
   { id: 'front_raise', name: 'フロントレイズ', targetMuscle: 'shoulder' },
+  
   // 腕 (Arms)
   { id: 'arm_curl', name: 'アームカール', targetMuscle: 'arms' },
   { id: 'french_press', name: 'フレンチプレス', targetMuscle: 'arms' },
   { id: 'kick_back', name: 'キックバック', targetMuscle: 'arms' },
   { id: 'dips', name: 'ディップス', targetMuscle: 'arms' },
+  
   // お尻 (Glutes)
   { id: 'hip_thrust', name: 'ヒップスラスト', targetMuscle: 'glutes' },
   { id: 'back_kick', name: 'バックキック', targetMuscle: 'glutes' },
   { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', targetMuscle: 'glutes' },
+  
+  // 中殿筋 (Gluteus Medius)
+  { id: 'abduction', name: 'アブダクション', targetMuscle: 'gluteus_medius' },
+  { id: 'clamshell', name: 'クラムシェル', targetMuscle: 'gluteus_medius' },
+  
   // 脚 (Legs)
   { id: 'squat', name: 'スクワット', targetMuscle: 'legs' },
   { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
   { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
   { id: 'lunge', name: 'ランジ', targetMuscle: 'legs' },
-  // 腹 (Abs)
+  
+  // ハムストリングス (Hamstrings)
+  { id: 'leg_curl', name: 'レッグカール', targetMuscle: 'hamstrings' },
+  { id: 'romanian_deadlift', name: 'ルーマニアンデッドリフト', targetMuscle: 'hamstrings' },
+  
+  // 腹直筋 (Abs)
   { id: 'crunch', name: 'クランチ', targetMuscle: 'abs' },
-  { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'abs' },
   { id: 'ab_roller', name: 'アブローラー', targetMuscle: 'abs' },
-  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'abs' },
+  
+  // 腹斜筋 (Obliques)
+  { id: 'side_crunch', name: 'サイドクランチ', targetMuscle: 'obliques' },
+  { id: 'russian_twist', name: 'ロシアンツイスト', targetMuscle: 'obliques' },
+  
+  // 腸腰筋 (Iliopsoas)
+  { id: 'bicycle_crunch', name: 'バイシクルクランチ', targetMuscle: 'iliopsoas' },
+  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'iliopsoas' },
+  
+  // 腹横筋 (Transversus Abdominis)
+  { id: 'draw_in', name: 'ドローイン (重量1kg/回数=秒数)', targetMuscle: 'transversus_abdominis' },
+  { id: 'plank', name: 'プランク (重量1kg/回数=秒数)', targetMuscle: 'transversus_abdominis' },
 ];
 
 const INITIAL_STATE: AppState = {
@@ -62,6 +101,14 @@ const INITIAL_STATE: AppState = {
   glutes: { level: 1, exp: 0 },
   legs: { level: 1, exp: 0 },
   abs: { level: 1, exp: 0 },
+  obliques: { level: 1, exp: 0 },
+  iliopsoas: { level: 1, exp: 0 },
+  transversus_abdominis: { level: 1, exp: 0 },
+  trapezius: { level: 1, exp: 0 },
+  erector_spinae: { level: 1, exp: 0 },
+  hamstrings: { level: 1, exp: 0 },
+  rhomboids: { level: 1, exp: 0 },
+  gluteus_medius: { level: 1, exp: 0 },
 };
 
 const MUSCLE_NAMES: Record<MuscleType, string> = {
@@ -71,7 +118,15 @@ const MUSCLE_NAMES: Record<MuscleType, string> = {
   arms: '上腕筋',
   glutes: '大臀筋',
   legs: '大腿四頭筋',
-  abs: '腹直筋'
+  abs: '腹直筋',
+  obliques: '腹斜筋',
+  iliopsoas: '腸腰筋',
+  transversus_abdominis: '腹横筋',
+  trapezius: '僧帽筋',
+  erector_spinae: '脊柱起立筋',
+  hamstrings: 'ハムストリングス',
+  rhomboids: '菱形筋',
+  gluteus_medius: '中殿筋',
 };
 
 const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
@@ -216,7 +271,7 @@ function App() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
         {(Object.keys(stats) as MuscleType[]).map(muscle => {
           const mStats = stats[muscle];
           const reqExp = getRequiredExp(mStats.level);
@@ -226,18 +281,18 @@ function App() {
           const phase = getEvolutionPhase(mStats.level);
 
           return (
-            <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '1rem' }}>
               
               {isBestPump && (
-                <div className="best-pump-badge">
+                <div className="best-pump-badge" style={{ fontSize: '1rem', padding: '2px 10px', top: '5px' }}>
                   BEST PUMP!!<br/><small>EXP x1.5</small>
                 </div>
               )}
 
-              <h3 style={{ fontSize: '1.1rem' }}>{MUSCLE_NAMES[muscle]}</h3>
-              <p style={{ color: 'var(--border-highlight)', margin: '0.2rem 0', fontSize: '1rem' }}>Lv.{mStats.level}</p>
+              <h3 style={{ fontSize: '1rem' }}>{MUSCLE_NAMES[muscle]}</h3>
+              <p style={{ color: 'var(--border-highlight)', margin: '0.2rem 0', fontSize: '0.9rem' }}>Lv.{mStats.level}</p>
               
-              <div style={{ height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
+              <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
                 <img 
                   src={`/assets/${muscle}_${phase}.png`} 
                   alt={muscle} 
@@ -246,12 +301,12 @@ function App() {
                 />
               </div>
 
-              <div style={{ width: '100%', fontSize: '0.8rem' }}>
+              <div style={{ width: '100%', fontSize: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
                   <span>EXP</span>
                   <span>{mStats.exp} / {reqExp}</span>
                 </div>
-                <div className="exp-bar-container">
+                <div className="exp-bar-container" style={{ height: '8px' }}>
                   <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
                 </div>
               </div>
