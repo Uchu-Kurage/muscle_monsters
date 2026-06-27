@@ -65,13 +65,13 @@ const INITIAL_STATE: AppState = {
 };
 
 const MUSCLE_NAMES: Record<MuscleType, string> = {
-  chest: '大胸筋モン',
-  back: '広背筋モン',
-  shoulder: '肩モン',
-  arms: '腕モン',
-  glutes: 'お尻モン',
-  legs: '四頭筋モン',
-  abs: '腹直筋モン'
+  chest: '大胸筋',
+  back: '広背筋',
+  shoulder: '三角筋',
+  arms: '上腕筋',
+  glutes: '大臀筋',
+  legs: '大腿四頭筋',
+  abs: '腹直筋'
 };
 
 const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
