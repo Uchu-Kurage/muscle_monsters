@@ -32,6 +32,8 @@ interface TrainingLog {
   gainedExp: number;
 }
 
+type TabType = 'characters' | 'record' | 'logs';
+
 const MUSCLE_GROUPS = [
   { id: 'chest', title: '🛡️ 胸部', muscles: ['chest'] as MuscleType[] },
   { id: 'back', title: '🦅 背部', muscles: ['back', 'trapezius', 'erector_spinae', 'rhomboids'] as MuscleType[] },
@@ -171,6 +173,8 @@ function formatDate(ms: number): string {
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<TabType>('characters');
+
   const [stats, setStats] = useState<AppState>(() => {
     const saved = localStorage.getItem('muscleStats');
     if (saved) {
@@ -199,6 +203,7 @@ function App() {
   const [evolutionAlert, setEvolutionAlert] = useState<{ muscle: MuscleType, phase: number } | null>(null);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
+  const [recordSuccess, setRecordSuccess] = useState(false);
 
   useEffect(() => {
     const now = Date.now();
@@ -313,6 +318,9 @@ function App() {
     }
     setReps('');
     setSets('');
+
+    setRecordSuccess(true);
+    setTimeout(() => setRecordSuccess(false), 2000);
   };
 
   const closeEvolutionAlert = () => {
@@ -320,14 +328,36 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', paddingBottom: '2rem' }}>
-      <header style={{ textAlign: 'center', marginBottom: '1rem' }}>
-        <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)' }}>マッスルモンスターズ</h1>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
+      <header style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+        <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>マッスルモンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)' }}>筋トレを記録して筋肉を育てよう！</p>
       </header>
 
+      {/* タブナビゲーション */}
+      <div className="tab-container">
+        <button 
+          className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('characters')}
+        >
+          👾 キャラクター
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('record')}
+        >
+          🏋️ 筋トレ記録
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('logs')}
+        >
+          📖 ログ
+        </button>
+      </div>
+
       {detrainAlert.length > 0 && (
-        <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center' }}>
+        <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center', marginBottom: '1rem' }}>
           <h3 style={{ color: '#ff4444' }}>⚠️ 筋肉ダウンのお知らせ</h3>
           <p>14日間以上トレーニングをサボったため、以下の筋肉が落ちて（EXP半減）しまいました…</p>
           <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{detrainAlert.join('、')}</p>
@@ -335,158 +365,176 @@ function App() {
         </div>
       )}
 
-      {/* グループごとの表示 */}
-      {MUSCLE_GROUPS.map(group => (
-        <div key={group.id} style={{ marginBottom: '1rem' }}>
-          <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-            {group.title}
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem' }}>
-            {group.muscles.map(muscle => {
-              const mStats = stats[muscle];
-              const reqExp = getRequiredExp(mStats.level);
-              const progress = (mStats.exp / reqExp) * 100;
-              const isLevelingUp = levelUpEffect === muscle;
-              const isBestPump = bestPumpAlert === muscle;
-              const phase = getEvolutionPhase(mStats.level);
+      {/* --- タブコンテンツ：キャラクター --- */}
+      {activeTab === 'characters' && (
+        <div>
+          {MUSCLE_GROUPS.map(group => (
+            <div key={group.id} style={{ marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                {group.title}
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem' }}>
+                {group.muscles.map(muscle => {
+                  const mStats = stats[muscle];
+                  const reqExp = getRequiredExp(mStats.level);
+                  const progress = (mStats.exp / reqExp) * 100;
+                  const isLevelingUp = levelUpEffect === muscle;
+                  const isBestPump = bestPumpAlert === muscle;
+                  const phase = getEvolutionPhase(mStats.level);
 
-              return (
-                <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem' }}>
-                  
-                  {isBestPump && (
-                    <div className="best-pump-badge" style={{ fontSize: '0.8rem', padding: '2px 6px', top: '2px' }}>
-                      PUMP!<br/>x1.5
+                  return (
+                    <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem' }}>
+                      
+                      {isBestPump && (
+                        <div className="best-pump-badge" style={{ fontSize: '0.8rem', padding: '2px 6px', top: '2px' }}>
+                          PUMP!<br/>x1.5
+                        </div>
+                      )}
+
+                      <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{MUSCLE_NAMES[muscle]}</h3>
+                      <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
+                      
+                      <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
+                        <img 
+                          src={`/assets/${muscle}_${phase}.png`} 
+                          alt={muscle} 
+                          className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
+                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+
+                      <div style={{ width: '100%', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <span>EXP</span>
+                          <span>{mStats.exp}/{reqExp}</span>
+                        </div>
+                        <div className="exp-bar-container" style={{ height: '6px' }}>
+                          <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-
-                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{MUSCLE_NAMES[muscle]}</h3>
-                  <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
-                  
-                  <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
-                    <img 
-                      src={`/assets/${muscle}_${phase}.png`} 
-                      alt={muscle} 
-                      className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
-                      style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-
-                  <div style={{ width: '100%', fontSize: '0.7rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                      <span>EXP</span>
-                      <span>{mStats.exp}/{reqExp}</span>
-                    </div>
-                    <div className="exp-bar-container" style={{ height: '6px' }}>
-                      <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      <div className="glass-panel" style={{ marginTop: '1rem' }}>
-        <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレ記録</h2>
-        
-        {/* 体重設定セクション */}
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-          <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>体重設定 (自重用):</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input 
-              type="number" 
-              min="1" 
-              value={bodyWeight} 
-              onChange={e => setBodyWeight(Number(e.target.value) || 60)} 
-              style={{ width: '70px', padding: '5px' }}
-            />
-            <span>kg</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '300px' }}>
-            <label>トレーニング種目</label>
-            <select value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)}>
-              {EXERCISES.map(ex => (
-                <option key={ex.id} value={ex.id}>
-                  {ex.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-              <label style={{ fontSize: '0.8rem' }}>重量 (kg)</label>
-              {isBodyweight ? (
-                <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.8rem', padding: '0' }} />
-              ) : (
-                <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-              <label style={{ fontSize: '0.8rem' }}>回数/秒数</label>
-              <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-              <label style={{ fontSize: '0.8rem' }}>セット数</label>
-              <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required />
-            </div>
-          </div>
-
-          <button type="submit" style={{ height: '45px', width: '100%', maxWidth: '300px', marginTop: '1rem' }}>記録する</button>
-        </form>
-        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
-          ※ 8〜12回、3〜5セットで記録すると「PUMP!」ボーナス！
-        </p>
-      </div>
-
-      {/* トレーニング履歴セクション */}
-      {trainingLogs.length > 0 && (
-        <div className="glass-panel" style={{ marginTop: '2rem' }}>
-          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 最近のトレーニング履歴</h2>
-          <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '10px' }}>
-            {trainingLogs.map(log => (
-              <div key={log.id} style={{ 
-                background: 'rgba(255,255,255,0.05)', 
-                padding: '1rem', 
-                borderRadius: '8px', 
-                marginBottom: '1rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.5rem'
-              }}>
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    {formatDate(log.timestamp)}
-                  </div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
-                    {log.exerciseName}
-                  </div>
-                  <div style={{ fontSize: '0.95rem', marginTop: '4px' }}>
-                    {log.isBodyweight ? `自重(${log.weight}kg)` : `${log.weight}kg`} × {log.reps}回 × {log.sets}セット
-                  </div>
-                </div>
-                <div style={{ 
-                  background: 'rgba(57, 255, 20, 0.1)', 
-                  color: 'var(--text-accent)', 
-                  padding: '8px 12px', 
-                  borderRadius: '16px',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem'
-                }}>
-                  +{log.gainedExp} EXP
-                </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* --- タブコンテンツ：筋トレ記録 --- */}
+      {activeTab === 'record' && (
+        <div className="glass-panel" style={{ marginTop: '0', position: 'relative' }}>
+          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレを記録する</h2>
+          
+          {/* 体重設定セクション */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>体重設定 (自重用):</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input 
+                type="number" 
+                min="1" 
+                value={bodyWeight} 
+                onChange={e => setBodyWeight(Number(e.target.value) || 60)} 
+                style={{ width: '70px', padding: '5px' }}
+              />
+              <span>kg</span>
+            </div>
           </div>
+
+          <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '300px' }}>
+              <label>トレーニング種目</label>
+              <select value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)}>
+                {EXERCISES.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+                <label style={{ fontSize: '0.8rem' }}>重量 (kg)</label>
+                {isBodyweight ? (
+                  <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.8rem', padding: '0' }} />
+                ) : (
+                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+                <label style={{ fontSize: '0.8rem' }}>回数/秒数</label>
+                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
+                <label style={{ fontSize: '0.8rem' }}>セット数</label>
+                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required />
+              </div>
+            </div>
+
+            <button type="submit" style={{ height: '45px', width: '100%', maxWidth: '300px', marginTop: '1rem' }}>記録する</button>
+          </form>
+          
+          {recordSuccess && (
+            <div style={{ textAlign: 'center', color: '#39ff14', fontWeight: 'bold', marginTop: '1rem', animation: 'scaleIn 0.3s ease-out' }}>
+              記録しました！EXP獲得！
+            </div>
+          )}
+
+          <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '1.5rem' }}>
+            ※ 8〜12回、3〜5セットで記録すると「PUMP!」ボーナス！
+          </p>
+        </div>
+      )}
+
+      {/* --- タブコンテンツ：ログ --- */}
+      {activeTab === 'logs' && (
+        <div className="glass-panel" style={{ marginTop: '0' }}>
+          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 トレーニング履歴</h2>
+          {trainingLogs.length === 0 ? (
+            <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>まだ記録がありません。トレーニングを開始しましょう！</p>
+          ) : (
+            <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
+              {trainingLogs.map(log => (
+                <div key={log.id} style={{ 
+                  background: 'rgba(255,255,255,0.05)', 
+                  padding: '1rem', 
+                  borderRadius: '8px', 
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      {formatDate(log.timestamp)}
+                    </div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                      {log.exerciseName}
+                    </div>
+                    <div style={{ fontSize: '0.95rem', marginTop: '4px' }}>
+                      {log.isBodyweight ? `自重(${log.weight}kg)` : `${log.weight}kg`} × {log.reps}回 × {log.sets}セット
+                    </div>
+                  </div>
+                  <div style={{ 
+                    background: 'rgba(57, 255, 20, 0.1)', 
+                    color: 'var(--text-accent)', 
+                    padding: '8px 12px', 
+                    borderRadius: '16px',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>
+                    +{log.gainedExp} EXP
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
