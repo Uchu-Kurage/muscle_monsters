@@ -153,6 +153,90 @@ const MUSCLE_NAMES: Record<MuscleType, string> = {
   gluteus_medius: '中殿筋',
 };
 
+interface MuscleDetail {
+  description: string;
+  effectiveExercises: string[];
+  trivia: string;
+}
+
+const MUSCLE_DETAILS: Record<MuscleType, MuscleDetail> = {
+  chest: {
+    description: "胸板を形成する強靭な筋肉。上半身の厚みを作り、たくましいシルエットを生み出します。",
+    effectiveExercises: ["ベンチプレス", "腕立て伏せ", "ダンベルフライ"],
+    trivia: "大胸筋は上部・中部・下部の3つの線維に分かれており、角度を変えて鍛えることでより立体的になります。"
+  },
+  back: {
+    description: "背中を広く覆う巨大な筋肉。逆三角形の体型を作るために最も重要な部位です。",
+    effectiveExercises: ["懸垂（チンニング）", "ラットプルダウン", "デッドリフト"],
+    trivia: "広背筋は人体で最も面積が広い筋肉。発達すると脇の下から羽が生えたように見えます。"
+  },
+  shoulder: {
+    description: "肩の丸みを作る筋肉。肩幅を広くし、小顔効果も期待できる重要な部位です。",
+    effectiveExercises: ["ショルダープレス", "サイドレイズ", "フロントレイズ"],
+    trivia: "三角筋は前部・中部・後部に分かれており、実は上半身の中で一番体積が大きい筋肉です。"
+  },
+  arms: {
+    description: "力強さの象徴である腕の筋肉。上腕二頭筋（力こぶ）と上腕三頭筋（二の腕）からなります。",
+    effectiveExercises: ["アームカール", "フレンチプレス", "ディップス"],
+    trivia: "腕の太さを出したい場合、力こぶ（二頭筋）よりも裏側の三頭筋を鍛える方が効率的です（腕の体積の2/3を占めます）。"
+  },
+  glutes: {
+    description: "お尻のふくらみを作る人体最大の筋肉。歩行やダッシュなどあらゆる動作の要となります。",
+    effectiveExercises: ["スクワット", "ヒップスラスト", "ブルガリアンスクワット"],
+    trivia: "大臀筋は単一の筋肉としては人体で最も体積が大きく、最も強力なパワーを生み出します。"
+  },
+  legs: {
+    description: "太ももの前側にある強靭な筋肉。立ち上がったり歩いたりする人間の基本動作を支えます。",
+    effectiveExercises: ["スクワット", "レッグプレス", "レッグエクステンション"],
+    trivia: "大腿四頭筋はその名の通り4つの筋肉の集合体で、全身の筋肉の中で最も強い力を発揮できます。"
+  },
+  abs: {
+    description: "お腹の正面にある筋肉。いわゆる「シックスパック」を形成し、体幹を曲げる働きをします。",
+    effectiveExercises: ["クランチ", "腹筋ローラー", "レッグレイズ"],
+    trivia: "実は腹直筋は最初から割れています。上に乗っている脂肪が落ちることで、その割れ目が見えるようになります。"
+  },
+  obliques: {
+    description: "お腹の横側にある筋肉。くびれを作り、体をひねる動作で強く働きます。",
+    effectiveExercises: ["サイドクランチ", "ロシアンツイスト"],
+    trivia: "腹斜筋が発達すると、腹直筋の横に斜めの美しいライン（Vシェイプ）が浮かび上がります。"
+  },
+  iliopsoas: {
+    description: "上半身と下半身を繋ぐ唯一の筋肉群。太ももを持ち上げる動作に不可欠です。",
+    effectiveExercises: ["バイシクルクランチ", "レッグレイズ"],
+    trivia: "黒人アスリートは腸腰筋が日本人の約3倍も太いと言われており、これが脅威のバネの秘密です。"
+  },
+  transversus_abdominis: {
+    description: "お腹の最も深層にある「天然のコルセット」。内臓を支え、ぽっこりお腹を防ぎます。",
+    effectiveExercises: ["プランク", "ドローイン"],
+    trivia: "激しい運動をしなくても、日常生活で「お腹をへこませる」だけで鍛えられる唯一の筋肉です。"
+  },
+  trapezius: {
+    description: "首から背中の中央まで広がる筋肉。肩甲骨を動かし、首を支える役割を持ちます。",
+    effectiveExercises: ["シュラッグ", "アップライトロウ"],
+    trivia: "肩こりの主な原因となる筋肉です。適度に鍛えて血流を良くすることで肩こり解消に繋がります。"
+  },
+  erector_spinae: {
+    description: "背骨に沿って縦に走る筋肉群。良い姿勢を保つために24時間働き続けています。",
+    effectiveExercises: ["バックエクステンション", "デッドリフト"],
+    trivia: "直立二足歩行をする人類にとって最も重要で、最も疲労が溜まりやすい筋肉の一つです。"
+  },
+  hamstrings: {
+    description: "太ももの裏側にある筋肉群。ブレーキの役割を果たし、肉離れが起きやすい部位です。",
+    effectiveExercises: ["レッグカール", "ルーマニアンデッドリフト"],
+    trivia: "「ハム（豚のもも肉）のひも」という語源の通り、昔は豚を吊るす際にこの筋肉の腱を使っていたそうです。"
+  },
+  rhomboids: {
+    description: "肩甲骨と背骨の間にある筋肉。肩甲骨を寄せる働きをし、猫背の予防に極めて重要です。",
+    effectiveExercises: ["シーテッドロウ", "ワンハンドロウ"],
+    trivia: "デスクワークが長い人はここが伸びきって弱まりがち。鍛えることで胸を張った美しい姿勢になります。"
+  },
+  gluteus_medius: {
+    description: "お尻の横側にある筋肉。片足立ちの際に骨盤を水平に保ち、体のバランスを制御します。",
+    effectiveExercises: ["アブダクション", "クラムシェル"],
+    trivia: "歩くときに体が左右に揺れてしまう人は、この中殿筋が弱っているサインかもしれません。"
+  },
+};
+
 const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
 
 function getRequiredExp(level: number) {
@@ -210,6 +294,7 @@ function App() {
   const [evolutionAlert, setEvolutionAlert] = useState<{ muscle: MuscleType, phase: number } | null>(null);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
+  const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
 
   useEffect(() => {
@@ -515,7 +600,12 @@ function App() {
                   const phase = getEvolutionPhase(mStats.level);
 
                   return (
-                    <div key={muscle} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem' }}>
+                    <div 
+                      key={muscle} 
+                      className="glass-panel muscle-card" 
+                      onClick={() => setSelectedMuscleInfo(muscle)}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}
+                    >
                       
                       {isBestPump && (
                         <div className="best-pump-badge" style={{ fontSize: '0.8rem', padding: '2px 6px', top: '2px' }}>
@@ -693,6 +783,61 @@ function App() {
             />
             <br />
             <button onClick={closeEvolutionAlert} style={{ width: '100%', maxWidth: '200px' }}>閉じる</button>
+          </div>
+        </div>
+      )}
+
+      {/* Muscle Detail Modal Overlay */}
+      {selectedMuscleInfo && (
+        <div className="modal-overlay" onClick={() => setSelectedMuscleInfo(null)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+              <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
+                <br/>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>EXP: {stats[selectedMuscleInfo].exp}/{getRequiredExp(stats[selectedMuscleInfo].level)}</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <img 
+                src={`/assets/${selectedMuscleInfo}_${getEvolutionPhase(stats[selectedMuscleInfo].level)}.png`} 
+                alt={MUSCLE_NAMES[selectedMuscleInfo]} 
+                style={{ height: '120px', objectFit: 'contain' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>📖</span> 概要
+              </h4>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_DETAILS[selectedMuscleInfo].description}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>🏋️</span> おすすめトレーニング
+              </h4>
+              <ul style={{ fontSize: '0.85rem', paddingLeft: '1.5rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_DETAILS[selectedMuscleInfo].effectiveExercises.map(ex => (
+                  <li key={ex}>{ex}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
+              <h4 style={{ fontSize: '0.9rem', color: '#ffea00', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>💡</span> トリビア
+              </h4>
+              <p style={{ fontSize: '0.8rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_DETAILS[selectedMuscleInfo].trivia}
+              </p>
+            </div>
+
+            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', height: '40px' }}>閉じる</button>
           </div>
         </div>
       )}
