@@ -177,6 +177,11 @@ function formatDate(ms: number): string {
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('characters');
 
+  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
   const [stats, setStats] = useState<AppState>(() => {
     const saved = localStorage.getItem('muscleStats');
     if (saved) {
@@ -339,22 +344,31 @@ function App() {
       dataMap.set(dateStr, (dataMap.get(dateStr) || 0) + log.gainedExp);
     });
 
-    const today = new Date();
-    const jsDay = today.getDay(); // 0: 日, 1: 月...
-    const offset = jsDay === 0 ? 6 : jsDay - 1; // 月曜=0, 日曜=6
-
-    const WEEKS = 5;
-    const totalDays = WEEKS * 7;
+    const year = currentMonthDate.getFullYear();
+    const month = currentMonthDate.getMonth();
     
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() + (6 - offset));
-    endDate.setHours(0,0,0,0);
-    today.setHours(0,0,0,0);
+    // その月の1日と末日
+    const firstDayOfMonth = new Date(year, month, 1);
+    
+    // 月曜始まりのインデックス (0: 月, 1: 火 ... 6: 日)
+    const jsFirstDay = firstDayOfMonth.getDay();
+    const offset = jsFirstDay === 0 ? 6 : jsFirstDay - 1;
+
+    // カレンダーの開始日 (前月の余白部分)
+    const startDate = new Date(firstDayOfMonth);
+    startDate.setDate(firstDayOfMonth.getDate() - offset);
+
+    // 最大6週 = 42マスで固定
+    const WEEKS = 6;
+    const totalDays = WEEKS * 7;
 
     const calendarData: any[] = [];
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const d = new Date(endDate);
-      d.setDate(endDate.getDate() - i);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       const exp = dataMap.get(dateStr) || 0;
@@ -364,6 +378,7 @@ function App() {
       if (exp >= 150) level = 3;
       if (exp >= 300) level = 4;
 
+      const isCurrentMonth = d.getMonth() === month;
       const isFuture = d.getTime() > today.getTime();
 
       calendarData.push({
@@ -371,46 +386,66 @@ function App() {
         count: exp,
         level: level,
         isFuture: isFuture,
+        isCurrentMonth: isCurrentMonth
       });
     }
 
     const colors = ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'];
     const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-    const weekLabels = ['4週前', '3週前', '2週前', '先週', '今週'];
+    const weekLabels = ['1W', '2W', '3W', '4W', '5W', '6W'];
 
     return (
-      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto', width: '100%' }}>
-        <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          直近5週間の活動（月曜始まり・右下が今週末）
+      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '100%' }}>
+        {/* ナビゲーションヘッダー */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '280px', marginBottom: '1.5rem' }}>
+          <button 
+            onClick={() => setCurrentMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: 'rgba(255,255,255,0.1)', minHeight: 'auto' }}
+          >
+            ◀︎
+          </button>
+          <div style={{ color: 'var(--text-accent)', fontSize: '1.1rem', fontWeight: 'bold' }}>
+            {year}年 {month + 1}月
+          </div>
+          <button 
+            onClick={() => setCurrentMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: 'rgba(255,255,255,0.1)', minHeight: 'auto' }}
+          >
+            ▶︎
+          </button>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '45px repeat(7, 28px)', gap: '6px', alignItems: 'center' }}>
+        {/* カレンダー本体 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '25px repeat(7, 22px)', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
           <div></div>
           {weekdays.map(day => (
-            <div key={day} style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            <div key={day} style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {day}
             </div>
           ))}
 
           {Array.from({ length: WEEKS }).map((_, weekIndex) => (
             <div style={{ display: 'contents' }} key={`week-${weekIndex}`}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right', paddingRight: '6px' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'right', paddingRight: '4px' }}>
                 {weekLabels[weekIndex]}
               </div>
               
               {Array.from({ length: 7 }).map((_, dayIndex) => {
                 const item = calendarData[weekIndex * 7 + dayIndex];
+                const opacity = item.isCurrentMonth ? 1 : 0.15;
+                
                 return (
                   <div 
                     key={item.date}
                     data-tooltip-id="calendar-tooltip" 
-                    data-tooltip-content={item.isFuture ? '未来' : `${item.date}: ${item.count} EXP獲得`} 
+                    data-tooltip-content={`${item.date}: ${item.count} EXP獲得`} 
                     style={{
-                      width: '28px',
-                      height: '28px',
+                      width: '22px',
+                      height: '22px',
                       borderRadius: '4px',
                       backgroundColor: item.isFuture ? 'rgba(255,255,255,0.02)' : colors[item.level],
-                      boxShadow: item.level > 0 && !item.isFuture ? `0 0 4px ${colors[item.level]}80` : 'none',
+                      opacity: opacity,
+                      boxShadow: item.level > 0 && !item.isFuture && item.isCurrentMonth ? `0 0 3px ${colors[item.level]}80` : 'none',
                       border: item.isFuture ? '1px dashed rgba(255,255,255,0.1)' : 'none'
                     }}
                   />
