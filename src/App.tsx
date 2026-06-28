@@ -625,7 +625,7 @@ function App() {
       {/* --- タブコンテンツ：ログ --- */}
       {activeTab === 'logs' && (
         <div className="glass-panel" style={{ marginTop: '0' }}>
-          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 トレーニング履歴</h2>
+          <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 筋トレ履歴</h2>
           
           {/* 草カレンダー */}
           {renderCalendar()}
