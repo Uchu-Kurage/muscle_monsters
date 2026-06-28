@@ -539,13 +539,16 @@ function App() {
           {/* 草カレンダー */}
           <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <ActivityCalendar 
+              key={`calendar-${trainingLogs.length}`} // ログ追加時に確実に再描画させる
               data={generateCalendarData()} 
+              maxLevel={4}
               blockSize={22}
               blockRadius={6}
               blockMargin={6}
               theme={{
                 light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
-                dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
+                // ダークテーマの色を明るくし、1回でもやればハッキリ緑になるように調整
+                dark: ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'],
               }}
               colorScheme="dark"
               labels={{
