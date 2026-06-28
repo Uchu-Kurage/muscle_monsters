@@ -329,42 +329,99 @@ function App() {
     setEvolutionAlert(null);
   };
 
-  // カレンダー用のデータを生成する関数
-  const generateCalendarData = () => {
+  // カレンダーコンポーネントの描画
+  const renderCalendar = () => {
     const dataMap = new Map<string, number>();
     
     trainingLogs.forEach(log => {
       const d = new Date(log.timestamp);
-      // ローカルタイムで YYYY-MM-DD 形式の文字列を作成
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dataMap.set(dateStr, (dataMap.get(dateStr) || 0) + log.gainedExp);
     });
 
-    // 直近30日分（約1ヶ月）のカレンダー枠を作成
-    const daysToShow = 30;
-    const result = [];
     const today = new Date();
+    const jsDay = today.getDay(); // 0: 日, 1: 月...
+    const offset = jsDay === 0 ? 6 : jsDay - 1; // 月曜=0, 日曜=6
+
+    const WEEKS = 5;
+    const totalDays = WEEKS * 7;
     
-    for (let i = daysToShow - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + (6 - offset));
+    endDate.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+
+    const calendarData: any[] = [];
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(endDate);
+      d.setDate(endDate.getDate() - i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       const exp = dataMap.get(dateStr) || 0;
-      
       let level = 0;
       if (exp > 0) level = 1;
       if (exp >= 50) level = 2;
       if (exp >= 150) level = 3;
       if (exp >= 300) level = 4;
 
-      result.push({
+      const isFuture = d.getTime() > today.getTime();
+
+      calendarData.push({
         date: dateStr,
         count: exp,
-        level: level
+        level: level,
+        isFuture: isFuture,
       });
     }
-    return result;
+
+    const colors = ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'];
+    const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+    const weekLabels = ['4週前', '3週前', '2週前', '先週', '今週'];
+
+    return (
+      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto', width: '100%' }}>
+        <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+          直近5週間の活動（月曜始まり・右下が今週末）
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '45px repeat(7, 28px)', gap: '6px', alignItems: 'center' }}>
+          <div></div>
+          {weekdays.map(day => (
+            <div key={day} style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {day}
+            </div>
+          ))}
+
+          {Array.from({ length: WEEKS }).map((_, weekIndex) => (
+            <div style={{ display: 'contents' }} key={`week-${weekIndex}`}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right', paddingRight: '6px' }}>
+                {weekLabels[weekIndex]}
+              </div>
+              
+              {Array.from({ length: 7 }).map((_, dayIndex) => {
+                const item = calendarData[weekIndex * 7 + dayIndex];
+                return (
+                  <div 
+                    key={item.date}
+                    data-tooltip-id="calendar-tooltip" 
+                    data-tooltip-content={item.isFuture ? '未来' : `${item.date}: ${item.count} EXP獲得`} 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      backgroundColor: item.isFuture ? 'rgba(255,255,255,0.02)' : colors[item.level],
+                      boxShadow: item.level > 0 && !item.isFuture ? `0 0 4px ${colors[item.level]}80` : 'none',
+                      border: item.isFuture ? '1px dashed rgba(255,255,255,0.1)' : 'none'
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <Tooltip id="calendar-tooltip" />
+      </div>
+    );
   };
 
   return (
@@ -535,36 +592,8 @@ function App() {
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 トレーニング履歴</h2>
           
-          {/* 直近1ヶ月（30日）の自作カレンダー */}
-          <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              直近30日の活動（右下が今日）
-            </div>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(7, 1fr)', 
-              gap: '6px',
-            }}>
-              {generateCalendarData().map((item) => {
-                const colors = ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'];
-                return (
-                  <div 
-                    key={item.date}
-                    data-tooltip-id="calendar-tooltip" 
-                    data-tooltip-content={`${item.date}: ${item.count} EXP獲得`} 
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '4px',
-                      backgroundColor: colors[item.level],
-                      boxShadow: item.level > 0 ? `0 0 4px ${colors[item.level]}80` : 'none',
-                    }}
-                  />
-                );
-              })}
-            </div>
-            <Tooltip id="calendar-tooltip" />
-          </div>
+          {/* 草カレンダー */}
+          {renderCalendar()}
 
           <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
             最近の記録
