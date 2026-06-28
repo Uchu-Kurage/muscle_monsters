@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { ActivityCalendar } from 'react-activity-calendar';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
@@ -536,34 +535,34 @@ function App() {
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 トレーニング履歴</h2>
           
-          {/* 草カレンダー */}
-          <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <ActivityCalendar 
-              key={`calendar-${trainingLogs.length}`} // ログ追加時に確実に再描画させる
-              data={generateCalendarData()} 
-              maxLevel={4}
-              blockSize={22}
-              blockRadius={6}
-              blockMargin={6}
-              theme={{
-                light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
-                // ダークテーマの色を明るくし、1回でもやればハッキリ緑になるように調整
-                dark: ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'],
-              }}
-              colorScheme="dark"
-              labels={{
-                legend: { less: '休養', more: '猛烈' },
-                months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-                totalCount: '直近1ヶ月の合計獲得EXP: {{count}}',
-              }}
-              renderBlock={(block: any, activity: any) => (
-                <div 
-                  {...block} 
-                  data-tooltip-id="calendar-tooltip" 
-                  data-tooltip-content={`${activity.date}: ${activity.count} EXP獲得`} 
-                />
-              )}
-            />
+          {/* 直近1ヶ月（30日）の自作カレンダー */}
+          <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              直近30日の活動（右下が今日）
+            </div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(7, 1fr)', 
+              gap: '6px',
+            }}>
+              {generateCalendarData().map((item) => {
+                const colors = ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'];
+                return (
+                  <div 
+                    key={item.date}
+                    data-tooltip-id="calendar-tooltip" 
+                    data-tooltip-content={`${item.date}: ${item.count} EXP獲得`} 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      backgroundColor: colors[item.level],
+                      boxShadow: item.level > 0 ? `0 0 4px ${colors[item.level]}80` : 'none',
+                    }}
+                  />
+                );
+              })}
+            </div>
             <Tooltip id="calendar-tooltip" />
           </div>
 
