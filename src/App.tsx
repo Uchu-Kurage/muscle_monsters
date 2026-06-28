@@ -341,8 +341,8 @@ function App() {
       dataMap.set(dateStr, (dataMap.get(dateStr) || 0) + log.gainedExp);
     });
 
-    // 直近180日分（約半年）のカレンダー枠を作成
-    const daysToShow = 180;
+    // 直近30日分（約1ヶ月）のカレンダー枠を作成
+    const daysToShow = 30;
     const result = [];
     const today = new Date();
     
@@ -540,6 +540,9 @@ function App() {
           <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <ActivityCalendar 
               data={generateCalendarData()} 
+              blockSize={22}
+              blockRadius={6}
+              blockMargin={6}
               theme={{
                 light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
                 dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
@@ -548,7 +551,7 @@ function App() {
               labels={{
                 legend: { less: '休養', more: '猛烈' },
                 months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-                totalCount: '直近約半年の合計獲得EXP: {{count}}',
+                totalCount: '直近1ヶ月の合計獲得EXP: {{count}}',
               }}
               renderBlock={(block: any, activity: any) => (
                 <div 
