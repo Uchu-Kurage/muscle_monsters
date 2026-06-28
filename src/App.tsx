@@ -830,7 +830,7 @@ function App() {
 
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
               <h4 style={{ fontSize: '0.9rem', color: '#ffea00', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>💡</span> トリビア
+                <span>💡</span> Tips
               </h4>
               <p style={{ fontSize: '0.8rem', lineHeight: '1.5', margin: 0 }}>
                 {MUSCLE_DETAILS[selectedMuscleInfo].trivia}
