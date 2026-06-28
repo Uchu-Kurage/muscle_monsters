@@ -19,7 +19,8 @@ type AppState = Record<MuscleType, MuscleStats>;
 interface ExerciseDef {
   id: string;
   name: string;
-  targetMuscle: MuscleType;
+  primaryMuscle: MuscleType;
+  targets: { muscle: MuscleType; expRatio: number }[];
   isBodyweight?: boolean;
 }
 
@@ -46,75 +47,75 @@ const MUSCLE_GROUPS = [
 
 const EXERCISES: ExerciseDef[] = [
   // 胸 (Chest)
-  { id: 'bench_press', name: 'ベンチプレス', targetMuscle: 'chest' },
-  { id: 'push_up', name: '腕立て伏せ', targetMuscle: 'chest', isBodyweight: true },
-  { id: 'dumbbell_fly', name: 'ダンベルフライ', targetMuscle: 'chest' },
-  { id: 'chest_press', name: 'チェストプレス', targetMuscle: 'chest' },
+  { id: 'bench_press', name: 'ベンチプレス', primaryMuscle: 'chest', targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.5}, {muscle: 'shoulder', expRatio: 0.4}] },
+  { id: 'push_up', name: '腕立て伏せ', primaryMuscle: 'chest', isBodyweight: true, targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.5}, {muscle: 'abs', expRatio: 0.2}] },
+  { id: 'dumbbell_fly', name: 'ダンベルフライ', primaryMuscle: 'chest', targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.2}] },
+  { id: 'chest_press', name: 'チェストプレス', primaryMuscle: 'chest', targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.4}] },
   
   // 背中 (Back)
-  { id: 'pull_up', name: '懸垂（チンニング）', targetMuscle: 'back', isBodyweight: true },
-  { id: 'deadlift', name: 'デッドリフト', targetMuscle: 'back' },
-  { id: 'lat_pulldown', name: 'ラットプルダウン', targetMuscle: 'back' },
-  { id: 'bent_over_row', name: 'ベントオーバーロウ', targetMuscle: 'back' },
+  { id: 'pull_up', name: '懸垂（チンニング）', primaryMuscle: 'back', isBodyweight: true, targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.6}, {muscle: 'rhomboids', expRatio: 0.4}] },
+  { id: 'deadlift', name: 'デッドリフト', primaryMuscle: 'back', targets: [{muscle: 'erector_spinae', expRatio: 1.0}, {muscle: 'back', expRatio: 0.8}, {muscle: 'glutes', expRatio: 0.6}, {muscle: 'hamstrings', expRatio: 0.5}] },
+  { id: 'lat_pulldown', name: 'ラットプルダウン', primaryMuscle: 'back', targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.4}, {muscle: 'rhomboids', expRatio: 0.3}] },
+  { id: 'bent_over_row', name: 'ベントオーバーロウ', primaryMuscle: 'back', targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'rhomboids', expRatio: 0.8}, {muscle: 'erector_spinae', expRatio: 0.5}] },
   
   // 僧帽筋 (Trapezius)
-  { id: 'shrug', name: 'シュラッグ', targetMuscle: 'trapezius' },
-  { id: 'upright_row', name: 'アップライトロウ', targetMuscle: 'trapezius' },
+  { id: 'shrug', name: 'シュラッグ', primaryMuscle: 'trapezius', targets: [{muscle: 'trapezius', expRatio: 1.0}] },
+  { id: 'upright_row', name: 'アップライトロウ', primaryMuscle: 'trapezius', targets: [{muscle: 'trapezius', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.6}] },
   
   // 菱形筋 (Rhomboids)
-  { id: 'seated_row', name: 'シーテッドロウ', targetMuscle: 'rhomboids' },
-  { id: 'one_hand_row', name: 'ワンハンドロウ', targetMuscle: 'rhomboids' },
+  { id: 'seated_row', name: 'シーテッドロウ', primaryMuscle: 'rhomboids', targets: [{muscle: 'rhomboids', expRatio: 1.0}, {muscle: 'back', expRatio: 0.6}, {muscle: 'arms', expRatio: 0.4}] },
+  { id: 'one_hand_row', name: 'ワンハンドロウ', primaryMuscle: 'rhomboids', targets: [{muscle: 'rhomboids', expRatio: 1.0}, {muscle: 'back', expRatio: 0.8}, {muscle: 'arms', expRatio: 0.4}] },
   
   // 脊柱起立筋 (Erector Spinae)
-  { id: 'back_extension', name: 'バックエクステンション', targetMuscle: 'erector_spinae', isBodyweight: true },
-  { id: 'good_morning', name: 'グッドモーニング', targetMuscle: 'erector_spinae' },
+  { id: 'back_extension', name: 'バックエクステンション', primaryMuscle: 'erector_spinae', isBodyweight: true, targets: [{muscle: 'erector_spinae', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.5}, {muscle: 'hamstrings', expRatio: 0.4}] },
+  { id: 'good_morning', name: 'グッドモーニング', primaryMuscle: 'erector_spinae', targets: [{muscle: 'erector_spinae', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.8}, {muscle: 'glutes', expRatio: 0.6}] },
   
   // 肩 (Shoulder)
-  { id: 'back_press', name: 'バックプレス', targetMuscle: 'shoulder' },
-  { id: 'shoulder_press', name: 'ショルダープレス', targetMuscle: 'shoulder' },
-  { id: 'side_raise', name: 'サイドレイズ', targetMuscle: 'shoulder' },
-  { id: 'front_raise', name: 'フロントレイズ', targetMuscle: 'shoulder' },
+  { id: 'back_press', name: 'バックプレス', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.4}, {muscle: 'trapezius', expRatio: 0.3}] },
+  { id: 'shoulder_press', name: 'ショルダープレス', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'arms', expRatio: 0.5}, {muscle: 'chest', expRatio: 0.2}] },
+  { id: 'side_raise', name: 'サイドレイズ', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}] },
+  { id: 'front_raise', name: 'フロントレイズ', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.2}] },
   
   // 腕 (Arms)
-  { id: 'arm_curl', name: 'アームカール', targetMuscle: 'arms' },
-  { id: 'french_press', name: 'フレンチプレス', targetMuscle: 'arms' },
-  { id: 'kick_back', name: 'キックバック', targetMuscle: 'arms' },
-  { id: 'dips', name: 'ディップス', targetMuscle: 'arms', isBodyweight: true },
+  { id: 'arm_curl', name: 'アームカール', primaryMuscle: 'arms', targets: [{muscle: 'arms', expRatio: 1.0}] },
+  { id: 'french_press', name: 'フレンチプレス', primaryMuscle: 'arms', targets: [{muscle: 'arms', expRatio: 1.0}] },
+  { id: 'kick_back', name: 'キックバック', primaryMuscle: 'arms', targets: [{muscle: 'arms', expRatio: 1.0}] },
+  { id: 'dips', name: 'ディップス', primaryMuscle: 'arms', isBodyweight: true, targets: [{muscle: 'arms', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.6}, {muscle: 'shoulder', expRatio: 0.3}] },
   
   // お尻 (Glutes)
-  { id: 'hip_thrust', name: 'ヒップスラスト', targetMuscle: 'glutes' },
-  { id: 'back_kick', name: 'バックキック', targetMuscle: 'glutes', isBodyweight: true },
-  { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', targetMuscle: 'glutes', isBodyweight: true },
+  { id: 'hip_thrust', name: 'ヒップスラスト', primaryMuscle: 'glutes', targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.4}] },
+  { id: 'back_kick', name: 'バックキック', primaryMuscle: 'glutes', isBodyweight: true, targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.3}] },
+  { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', primaryMuscle: 'glutes', isBodyweight: true, targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'legs', expRatio: 0.8}, {muscle: 'hamstrings', expRatio: 0.5}] },
   
   // 中殿筋 (Gluteus Medius)
-  { id: 'abduction', name: 'アブダクション', targetMuscle: 'gluteus_medius' },
-  { id: 'clamshell', name: 'クラムシェル', targetMuscle: 'gluteus_medius', isBodyweight: true },
+  { id: 'abduction', name: 'アブダクション', primaryMuscle: 'gluteus_medius', targets: [{muscle: 'gluteus_medius', expRatio: 1.0}] },
+  { id: 'clamshell', name: 'クラムシェル', primaryMuscle: 'gluteus_medius', isBodyweight: true, targets: [{muscle: 'gluteus_medius', expRatio: 1.0}] },
   
   // 脚 (Legs)
-  { id: 'squat', name: 'スクワット', targetMuscle: 'legs', isBodyweight: true },
-  { id: 'leg_press', name: 'レッグプレス', targetMuscle: 'legs' },
-  { id: 'leg_extension', name: 'レッグエクステンション', targetMuscle: 'legs' },
-  { id: 'lunge', name: 'ランジ', targetMuscle: 'legs', isBodyweight: true },
+  { id: 'squat', name: 'スクワット', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.8}, {muscle: 'hamstrings', expRatio: 0.5}, {muscle: 'erector_spinae', expRatio: 0.3}] },
+  { id: 'leg_press', name: 'レッグプレス', primaryMuscle: 'legs', targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.6}] },
+  { id: 'leg_extension', name: 'レッグエクステンション', primaryMuscle: 'legs', targets: [{muscle: 'legs', expRatio: 1.0}] },
+  { id: 'lunge', name: 'ランジ', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.9}, {muscle: 'hamstrings', expRatio: 0.6}] },
   
   // ハムストリングス (Hamstrings)
-  { id: 'leg_curl', name: 'レッグカール', targetMuscle: 'hamstrings' },
-  { id: 'romanian_deadlift', name: 'ルーマニアンデッドリフト', targetMuscle: 'hamstrings' },
+  { id: 'leg_curl', name: 'レッグカール', primaryMuscle: 'hamstrings', targets: [{muscle: 'hamstrings', expRatio: 1.0}] },
+  { id: 'romanian_deadlift', name: 'ルーマニアンデッドリフト', primaryMuscle: 'hamstrings', targets: [{muscle: 'hamstrings', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.8}, {muscle: 'erector_spinae', expRatio: 0.6}] },
   
   // 腹直筋 (Abs)
-  { id: 'crunch', name: 'クランチ', targetMuscle: 'abs', isBodyweight: true },
-  { id: 'ab_roller', name: '腹筋ローラー (アブローラー)', targetMuscle: 'abs', isBodyweight: true },
+  { id: 'crunch', name: 'クランチ', primaryMuscle: 'abs', isBodyweight: true, targets: [{muscle: 'abs', expRatio: 1.0}] },
+  { id: 'ab_roller', name: '腹筋ローラー (アブローラー)', primaryMuscle: 'abs', isBodyweight: true, targets: [{muscle: 'abs', expRatio: 1.0}, {muscle: 'transversus_abdominis', expRatio: 0.8}, {muscle: 'back', expRatio: 0.4}] },
   
   // 腹斜筋 (Obliques)
-  { id: 'side_crunch', name: 'サイドクランチ', targetMuscle: 'obliques', isBodyweight: true },
-  { id: 'russian_twist', name: 'ロシアンツイスト', targetMuscle: 'obliques', isBodyweight: true },
+  { id: 'side_crunch', name: 'サイドクランチ', primaryMuscle: 'obliques', isBodyweight: true, targets: [{muscle: 'obliques', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.4}] },
+  { id: 'russian_twist', name: 'ロシアンツイスト', primaryMuscle: 'obliques', isBodyweight: true, targets: [{muscle: 'obliques', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.5}] },
   
   // 腸腰筋 (Iliopsoas)
-  { id: 'bicycle_crunch', name: 'バイシクルクランチ', targetMuscle: 'iliopsoas', isBodyweight: true },
-  { id: 'leg_raise', name: 'レッグレイズ', targetMuscle: 'iliopsoas', isBodyweight: true },
+  { id: 'bicycle_crunch', name: 'バイシクルクランチ', primaryMuscle: 'iliopsoas', isBodyweight: true, targets: [{muscle: 'obliques', expRatio: 1.0}, {muscle: 'iliopsoas', expRatio: 0.8}, {muscle: 'abs', expRatio: 0.6}] },
+  { id: 'leg_raise', name: 'レッグレイズ', primaryMuscle: 'iliopsoas', isBodyweight: true, targets: [{muscle: 'iliopsoas', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.8}] },
   
   // 腹横筋 (Transversus Abdominis)
-  { id: 'draw_in', name: 'ドローイン (自重設定)', targetMuscle: 'transversus_abdominis', isBodyweight: true },
-  { id: 'plank', name: 'プランク (自重設定)', targetMuscle: 'transversus_abdominis', isBodyweight: true },
+  { id: 'draw_in', name: 'ドローイン (自重設定)', primaryMuscle: 'transversus_abdominis', isBodyweight: true, targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}] },
+  { id: 'plank', name: 'プランク (自重設定)', primaryMuscle: 'transversus_abdominis', isBodyweight: true, targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.5}, {muscle: 'shoulder', expRatio: 0.2}, {muscle: 'arms', expRatio: 0.2}] },
 ];
 
 const INITIAL_STATE: AppState = {
@@ -291,7 +292,7 @@ function App() {
   const [sets, setSets] = useState<number | ''>('');
 
   const [levelUpEffect, setLevelUpEffect] = useState<MuscleType | null>(null);
-  const [evolutionAlert, setEvolutionAlert] = useState<{ muscle: MuscleType, phase: number } | null>(null);
+  const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number }[]>([]);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
@@ -348,49 +349,62 @@ function App() {
     if (r === 0 || s === 0) return;
 
     const volume = w * r * s;
-    const targetMuscle = selectedExercise.targetMuscle;
-    let gainedExp = Math.max(1, Math.floor(volume / 10));
+    let baseGainedExp = Math.max(1, Math.floor(volume / 10));
 
     const isBestPump = (r >= 8 && r <= 12 && s >= 3 && s <= 5);
     if (isBestPump) {
-      gainedExp = Math.floor(gainedExp * 1.5);
-      setBestPumpAlert(targetMuscle);
+      baseGainedExp = Math.floor(baseGainedExp * 1.5);
+      setBestPumpAlert(selectedExercise.primaryMuscle);
       setTimeout(() => setBestPumpAlert(null), 2500);
     }
 
+    const newEvolutions: { muscle: MuscleType, phase: number }[] = [];
+    const leveledUpMuscles: MuscleType[] = [];
+
     setStats(prev => {
-      const current = prev[targetMuscle];
-      let newExp = current.exp + gainedExp;
-      let newLevel = current.level;
-      let didLevelUp = false;
+      const nextStats = { ...prev };
+      
+      selectedExercise.targets.forEach(target => {
+        const muscle = target.muscle;
+        const expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
+        
+        const current = nextStats[muscle];
+        let newExp = current.exp + expToAdd;
+        let newLevel = current.level;
+        let didLevelUp = false;
 
-      while (newExp >= getRequiredExp(newLevel)) {
-        newExp -= getRequiredExp(newLevel);
-        newLevel++;
-        didLevelUp = true;
-      }
-
-      if (didLevelUp) {
-        const oldPhase = getEvolutionPhase(current.level);
-        const newPhase = getEvolutionPhase(newLevel);
-
-        if (newPhase > oldPhase) {
-          setEvolutionAlert({ muscle: targetMuscle, phase: newPhase });
-        } else {
-          setLevelUpEffect(targetMuscle);
-          setTimeout(() => setLevelUpEffect(null), 1500);
+        while (newExp >= getRequiredExp(newLevel)) {
+          newExp -= getRequiredExp(newLevel);
+          newLevel++;
+          didLevelUp = true;
         }
-      }
 
-      return {
-        ...prev,
-        [targetMuscle]: { 
-          level: newLevel, 
-          exp: newExp, 
-          lastTrainedAt: Date.now() 
+        if (didLevelUp) {
+          const oldPhase = getEvolutionPhase(current.level);
+          const newPhase = getEvolutionPhase(newLevel);
+
+          if (newPhase > oldPhase) {
+            newEvolutions.push({ muscle, phase: newPhase });
+          } else {
+            leveledUpMuscles.push(muscle);
+          }
         }
-      };
+
+        nextStats[muscle] = {
+          level: newLevel,
+          exp: newExp,
+          lastTrainedAt: Date.now()
+        };
+      });
+      return nextStats;
     });
+
+    if (newEvolutions.length > 0) {
+      setEvolutionAlerts(prev => [...prev, ...newEvolutions]);
+    } else if (leveledUpMuscles.length > 0) {
+      setLevelUpEffect(leveledUpMuscles[0]);
+      setTimeout(() => setLevelUpEffect(null), 1500);
+    }
 
     const newLog: TrainingLog = {
       id: Math.random().toString(36).substr(2, 9),
@@ -400,7 +414,7 @@ function App() {
       reps: r,
       sets: s,
       isBodyweight: isBodyweight,
-      gainedExp: gainedExp
+      gainedExp: baseGainedExp
     };
 
     setTrainingLogs(prev => [newLog, ...prev]);
@@ -416,7 +430,7 @@ function App() {
   };
 
   const closeEvolutionAlert = () => {
-    setEvolutionAlert(null);
+    setEvolutionAlerts(prev => prev.slice(1));
   };
 
   // カレンダーコンポーネントの描画
@@ -768,21 +782,23 @@ function App() {
       )}
 
       {/* Evolution Modal Overlay */}
-      {evolutionAlert && (
+      {evolutionAlerts.length > 0 && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
             <h1 style={{ color: '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>進化！！</h1>
             <p style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
-              おめでとう！<br/>{MUSCLE_NAMES[evolutionAlert.muscle]} は 第{evolutionAlert.phase}形態 に進化した！
+              おめでとう！<br/>{MUSCLE_NAMES[evolutionAlerts[0].muscle]} は 第{evolutionAlerts[0].phase}形態 に進化した！
             </p>
             <img 
-              src={`/assets/${evolutionAlert.muscle}_${evolutionAlert.phase}.png`} 
+              src={`/assets/${evolutionAlerts[0].muscle}_${evolutionAlerts[0].phase}.png`} 
               alt="Evolved Muscle" 
               className="monster-image"
               style={{ maxHeight: '250px', maxWidth: '100%', objectFit: 'contain', marginBottom: '2rem' }}
             />
             <br />
-            <button onClick={closeEvolutionAlert} style={{ width: '100%', maxWidth: '200px' }}>閉じる</button>
+            <button onClick={closeEvolutionAlert} style={{ width: '100%', maxWidth: '200px' }}>
+              {evolutionAlerts.length > 1 ? '次へ' : '閉じる'}
+            </button>
           </div>
         </div>
       )}
