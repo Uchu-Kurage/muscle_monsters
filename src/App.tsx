@@ -478,7 +478,7 @@ function App() {
           className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} 
           onClick={() => setActiveTab('record')}
         >
-          🏋️ 筋トレ記録
+          🏋️ 筋トレ
         </button>
         <button 
           className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} 
