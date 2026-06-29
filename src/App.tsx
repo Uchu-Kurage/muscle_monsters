@@ -28,6 +28,8 @@ interface RecordResultDetail {
   muscle: MuscleType;
   oldExp: number;
   oldLevel: number;
+  newExp: number;
+  newLevel: number;
   gainedExp: number;
   evolutionPhase?: number;
 }
@@ -43,7 +45,30 @@ interface TrainingLog {
   gainedExp: number;
 }
 
-type TabType = 'characters' | 'record' | 'logs';
+type TabType = 'characters' | 'record' | 'logs' | 'achievements';
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  check: (stats: Record<MuscleType, MuscleStats>, logs: TrainingLog[]) => boolean;
+}
+
+const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_blood', name: '駆け出しトレーニー', description: '初めてトレーニングを記録する', check: (_, logs) => logs.length > 0 },
+  { id: 'habit_3', name: '習慣化への第一歩', description: 'トレーニングを累計3日記録する', check: (_, logs) => new Set(logs.map(l => new Date(l.timestamp).toDateString())).size >= 3 },
+  { id: 'habit_7', name: '鉄の意志', description: 'トレーニングを累計7日記録する', check: (_, logs) => new Set(logs.map(l => new Date(l.timestamp).toDateString())).size >= 7 },
+  { id: 'chest_master', name: '大胸筋マスター', description: '大胸筋のレベルを10にする', check: (stats) => stats.chest.level >= 10 },
+  { id: 'back_master', name: '広背筋マスター', description: '広背筋のレベルを10にする', check: (stats) => stats.back.level >= 10 },
+  { id: 'legs_master', name: '大腿四頭筋マスター', description: '大腿四頭筋のレベルを10にする', check: (stats) => stats.legs.level >= 10 },
+  { id: 'squat_lover', name: 'スクワット狂', description: 'スクワットを累計10回記録する', check: (_, logs) => logs.filter(l => l.exerciseName.includes('スクワット')).length >= 10 },
+  { id: 'full_body', name: '全身筋肉痛', description: '1日で3種類以上の種目をトレーニングする', check: (_, logs) => {
+      const today = new Date().toDateString();
+      const todayLogs = logs.filter(l => new Date(l.timestamp).toDateString() === today);
+      return new Set(todayLogs.map(l => l.exerciseName)).size >= 3;
+  }},
+  { id: 'limit_break', name: '限界突破', description: '1回のトレーニングで100EXP以上獲得する', check: (_, logs) => logs.some(l => l.gainedExp >= 100) },
+];
 
 const MUSCLE_GROUPS = [
   { id: 'chest', title: '🛡️ 胸部', muscles: ['chest'] as MuscleType[] },
@@ -377,6 +402,9 @@ function App() {
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean } | null>(null);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
+  const [achievementAlert, setAchievementAlert] = useState<Achievement | null>(null);
 
   useEffect(() => {
     const now = Date.now();
@@ -413,6 +441,21 @@ function App() {
   useEffect(() => {
     localStorage.setItem('trainingLogs', JSON.stringify(trainingLogs));
   }, [trainingLogs]);
+
+  useEffect(() => {
+    const savedUnlocked = localStorage.getItem('unlockedAchievements');
+    if (savedUnlocked) setUnlockedAchievements(JSON.parse(savedUnlocked));
+    const savedTitle = localStorage.getItem('selectedTitle');
+    if (savedTitle) setSelectedTitle(savedTitle);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('unlockedAchievements', JSON.stringify(unlockedAchievements));
+  }, [unlockedAchievements]);
+
+  useEffect(() => {
+    if (selectedTitle) localStorage.setItem('selectedTitle', selectedTitle);
+  }, [selectedTitle]);
 
   const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
   const isBodyweight = selectedExercise?.isBodyweight || false;
@@ -478,6 +521,8 @@ function App() {
           muscle,
           oldExp,
           oldLevel,
+          newExp,
+          newLevel,
           gainedExp: expToAdd,
           evolutionPhase
         });
@@ -489,6 +534,21 @@ function App() {
         };
       });
       return nextStats;
+    });
+    
+    // We need nextStats reference outside for achievement check. 
+    // Since setStats is async, we simulate it here for check.
+    const nextStatsToUse = { ...stats };
+    selectedExercise.targets.forEach(target => {
+       const muscle = target.muscle;
+       const detail = details.find(d => d.muscle === muscle);
+       if(detail) {
+         nextStatsToUse[muscle] = {
+            level: detail.newLevel,
+            exp: detail.newExp,
+            lastTrainedAt: Date.now()
+         };
+       }
     });
 
     setRecordResult({ details, isBestPump });
@@ -509,6 +569,24 @@ function App() {
     };
 
     setTrainingLogs(prev => [newLog, ...prev]);
+
+    setUnlockedAchievements(prevUnlocked => {
+      const newlyUnlocked: Achievement[] = [];
+      const updatedLogs = [newLog, ...trainingLogs];
+      let finalUnlocked = [...prevUnlocked];
+      
+      ACHIEVEMENTS.forEach(ach => {
+        if (!finalUnlocked.includes(ach.id) && ach.check(nextStatsToUse, updatedLogs)) {
+          newlyUnlocked.push(ach);
+          finalUnlocked.push(ach.id);
+        }
+      });
+      
+      if (newlyUnlocked.length > 0) {
+        setAchievementAlert(newlyUnlocked[0]);
+      }
+      return finalUnlocked;
+    });
 
     if (!isBodyweight) {
       setWeight('');
@@ -655,31 +733,22 @@ function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
-      <header style={{ textAlign: 'center', margin: '0 0 0.5rem 0' }}>
-        <h1 style={{ fontSize: '2.5rem', color: 'var(--text-accent)', margin: '0 0 0.5rem 0', lineHeight: '1.2' }}>マッスル<br/>モンスターズ</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>筋トレで筋肉を育てよう！</p>
-      </header>
+      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        {selectedTitle && (
+          <div style={{ color: '#ffea00', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '0.5rem', animation: 'float 3s ease-in-out infinite' }}>
+            【{selectedTitle}】
+          </div>
+        )}
+        <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスルモンスターズ</h1>
+        <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
+      </div>
 
-      {/* タブナビゲーション */}
+      {/* Navigation Tabs */}
       <div className="tab-container">
-        <button 
-          className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('characters')}
-        >
-          👾 マスモン
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('record')}
-        >
-          🏋️ 筋トレ
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('logs')}
-        >
-          📖 ログ
-        </button>
+        <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>マスモン</button>
+        <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>記録する</button>
+        <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>履歴</button>
+        <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>称号</button>
       </div>
 
       {detrainAlert.length > 0 && (
@@ -875,6 +944,53 @@ function App() {
         </div>
       )}
 
+      {/* Achievements Tab */}
+      {activeTab === 'achievements' && (
+        <div className="glass-panel" style={{ animation: 'scaleIn 0.3s ease-out' }}>
+          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>実績と称号</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+            {ACHIEVEMENTS.map(ach => {
+              const isUnlocked = unlockedAchievements.includes(ach.id);
+              const isSelected = selectedTitle === ach.name;
+              return (
+                <div key={ach.id} style={{ 
+                  background: isUnlocked ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${isUnlocked ? 'var(--border-highlight)' : 'var(--border-color)'}`,
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  opacity: isUnlocked ? 1 : 0.5
+                }}>
+                  <div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isUnlocked ? '#00ffff' : '#8b8bac' }}>
+                      {isUnlocked ? ach.name : '？？？'}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      {ach.description}
+                    </div>
+                  </div>
+                  {isUnlocked && (
+                    <button 
+                      onClick={() => setSelectedTitle(isSelected ? null : ach.name)}
+                      style={{ 
+                        background: isSelected ? 'var(--btn-hover-bg)' : 'var(--btn-bg)', 
+                        color: isSelected ? 'var(--btn-hover-text)' : 'var(--btn-text)',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {isSelected ? 'はずす' : 'セット'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Result Modal Overlay */}
       {recordResult && (
         <div className="modal-overlay" style={{ zIndex: 1001 }}>
@@ -899,8 +1015,26 @@ function App() {
         </div>
       )}
 
+      {/* Achievement Alert Modal Overlay */}
+      {(!recordResult && achievementAlert) && (
+        <div className="modal-overlay" style={{ zIndex: 1002 }}>
+          <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'popUp 0.5s ease-out' }}>
+            <h1 style={{ color: '#00ffff', fontSize: '2.5rem', marginBottom: '1rem' }}>🏆 実績解除！ 🏆</h1>
+            <p style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
+              {achievementAlert.description}
+            </p>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ffea00', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,234,0,0.1)', borderRadius: '8px', border: '1px solid #ffea00' }}>
+              称号「{achievementAlert.name}」を獲得しました！
+            </div>
+            <button onClick={() => setAchievementAlert(null)} style={{ width: '100%', maxWidth: '200px' }}>
+              すごい！
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Evolution Modal Overlay */}
-      {(!recordResult && evolutionAlerts.length > 0) && (
+      {(!recordResult && !achievementAlert && evolutionAlerts.length > 0) && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
             <h1 style={{ color: '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>進化！！</h1>
