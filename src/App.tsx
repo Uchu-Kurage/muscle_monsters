@@ -284,7 +284,7 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
         return;
       }
       
-      const step = Math.max(1, Math.ceil(detail.gainedExp / 30));
+      const step = Math.max(1, Math.ceil(detail.gainedExp / 80));
       added += step;
       if (added > detail.gainedExp) {
         exp -= (added - detail.gainedExp);
@@ -311,21 +311,29 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
 
   const required = getRequiredExp(currentLevel);
   const percent = Math.min(100, (currentExp / required) * 100);
+  const phase = getEvolutionPhase(currentLevel);
 
   return (
-    <div className="result-row">
-      <div className="result-muscle-name">
-        {MUSCLE_NAMES[detail.muscle]}
-        <span className="result-exp-text">
-          Lv.{currentLevel} (+{detail.gainedExp} EXP)
-        </span>
-        {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
-      </div>
-      <div className="result-bar-container">
-        <div 
-          className={`result-bar-fill ${isFlashing ? 'result-bar-flash' : ''}`}
-          style={{ width: `${percent}%`, transition: isFlashing ? 'none' : 'width 0.1s linear' }}
-        />
+    <div className="result-row" style={{ display: 'flex', alignItems: 'center' }}>
+      <img 
+        src={`/assets/${detail.muscle}_${phase}.png`} 
+        alt={MUSCLE_NAMES[detail.muscle]} 
+        style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px' }} 
+      />
+      <div style={{ flex: 1 }}>
+        <div className="result-muscle-name">
+          {MUSCLE_NAMES[detail.muscle]}
+          <span className="result-exp-text">
+            Lv.{currentLevel} (+{detail.gainedExp} EXP)
+          </span>
+          {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
+        </div>
+        <div className="result-bar-container">
+          <div 
+            className={`result-bar-fill ${isFlashing ? 'result-bar-flash' : ''}`}
+            style={{ width: `${percent}%`, transition: isFlashing ? 'none' : 'width 0.1s linear' }}
+          />
+        </div>
       </div>
     </div>
   );
