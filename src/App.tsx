@@ -24,6 +24,14 @@ interface ExerciseDef {
   isBodyweight?: boolean;
 }
 
+interface RecordResultDetail {
+  muscle: MuscleType;
+  oldExp: number;
+  oldLevel: number;
+  gainedExp: number;
+  evolutionPhase?: number;
+}
+
 interface TrainingLog {
   id: string;
   timestamp: number;
@@ -259,6 +267,70 @@ function formatDate(ms: number): string {
   return `${m}/${d} ${hh}:${mm}`;
 }
 
+function ResultRow({ detail }: { detail: RecordResultDetail }) {
+  const [currentExp, setCurrentExp] = useState(detail.oldExp);
+  const [currentLevel, setCurrentLevel] = useState(detail.oldLevel);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [didLevelUp, setDidLevelUp] = useState(false);
+
+  useEffect(() => {
+    let exp = detail.oldExp;
+    let lvl = detail.oldLevel;
+    let added = 0;
+
+    const interval = setInterval(() => {
+      if (added >= detail.gainedExp) {
+        clearInterval(interval);
+        return;
+      }
+      
+      const step = Math.max(1, Math.ceil(detail.gainedExp / 30));
+      added += step;
+      if (added > detail.gainedExp) {
+        exp -= (added - detail.gainedExp);
+        added = detail.gainedExp;
+      }
+      
+      exp += step;
+      
+      let required = getRequiredExp(lvl);
+      if (exp >= required) {
+        exp -= required;
+        lvl++;
+        setIsFlashing(true);
+        setDidLevelUp(true);
+        setTimeout(() => setIsFlashing(false), 500);
+      }
+      
+      setCurrentExp(exp);
+      setCurrentLevel(lvl);
+    }, 30);
+    
+    return () => clearInterval(interval);
+  }, [detail]);
+
+  const required = getRequiredExp(currentLevel);
+  const percent = Math.min(100, (currentExp / required) * 100);
+
+  return (
+    <div className="result-row">
+      <div className="result-muscle-name">
+        {MUSCLE_NAMES[detail.muscle]}
+        <span className="result-exp-text">
+          Lv.{currentLevel} (+{detail.gainedExp} EXP)
+        </span>
+        {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
+      </div>
+      <div className="result-bar-container">
+        <div 
+          className={`result-bar-fill ${isFlashing ? 'result-bar-flash' : ''}`}
+          style={{ width: `${percent}%`, transition: isFlashing ? 'none' : 'width 0.1s linear' }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('characters');
 
@@ -291,12 +363,12 @@ function App() {
   const [reps, setReps] = useState<number | ''>('');
   const [sets, setSets] = useState<number | ''>('');
 
-  const [levelUpEffect, setLevelUpEffect] = useState<MuscleType | null>(null);
   const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number }[]>([]);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
+  const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean } | null>(null);
 
   useEffect(() => {
     const now = Date.now();
@@ -358,8 +430,8 @@ function App() {
       setTimeout(() => setBestPumpAlert(null), 2500);
     }
 
+    const details: RecordResultDetail[] = [];
     const newEvolutions: { muscle: MuscleType, phase: number }[] = [];
-    const leveledUpMuscles: MuscleType[] = [];
 
     setStats(prev => {
       const nextStats = { ...prev };
@@ -369,6 +441,9 @@ function App() {
         const expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
         
         const current = nextStats[muscle];
+        const oldExp = current.exp;
+        const oldLevel = current.level;
+        
         let newExp = current.exp + expToAdd;
         let newLevel = current.level;
         let didLevelUp = false;
@@ -379,16 +454,25 @@ function App() {
           didLevelUp = true;
         }
 
+        let evolutionPhase: number | undefined;
+
         if (didLevelUp) {
           const oldPhase = getEvolutionPhase(current.level);
           const newPhase = getEvolutionPhase(newLevel);
 
           if (newPhase > oldPhase) {
+            evolutionPhase = newPhase;
             newEvolutions.push({ muscle, phase: newPhase });
-          } else {
-            leveledUpMuscles.push(muscle);
           }
         }
+
+        details.push({
+          muscle,
+          oldExp,
+          oldLevel,
+          gainedExp: expToAdd,
+          evolutionPhase
+        });
 
         nextStats[muscle] = {
           level: newLevel,
@@ -399,11 +483,10 @@ function App() {
       return nextStats;
     });
 
+    setRecordResult({ details, isBestPump });
+
     if (newEvolutions.length > 0) {
       setEvolutionAlerts(prev => [...prev, ...newEvolutions]);
-    } else if (leveledUpMuscles.length > 0) {
-      setLevelUpEffect(leveledUpMuscles[0]);
-      setTimeout(() => setLevelUpEffect(null), 1500);
     }
 
     const newLog: TrainingLog = {
@@ -431,6 +514,10 @@ function App() {
 
   const closeEvolutionAlert = () => {
     setEvolutionAlerts(prev => prev.slice(1));
+  };
+
+  const closeResultModal = () => {
+    setRecordResult(null);
   };
 
   // カレンダーコンポーネントの描画
@@ -609,7 +696,6 @@ function App() {
                   const mStats = stats[muscle];
                   const reqExp = getRequiredExp(mStats.level);
                   const progress = (mStats.exp / reqExp) * 100;
-                  const isLevelingUp = levelUpEffect === muscle;
                   const isBestPump = bestPumpAlert === muscle;
                   const phase = getEvolutionPhase(mStats.level);
 
@@ -634,7 +720,7 @@ function App() {
                         <img 
                           src={`/assets/${muscle}_${phase}.png`} 
                           alt={muscle} 
-                          className={`monster-image ${isLevelingUp ? 'level-up-effect' : ''}`}
+                          className={`monster-image`}
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                         />
                       </div>
@@ -781,8 +867,32 @@ function App() {
         </div>
       )}
 
+      {/* Result Modal Overlay */}
+      {recordResult && (
+        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+          <div className="modal-content result-modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out' }}>
+            <h1 style={{ color: '#ffea00', fontSize: '2rem', marginBottom: '1rem' }}>TRAINING COMPLETE!</h1>
+            {recordResult.isBestPump && (
+              <p style={{ color: '#ff00ff', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1s infinite' }}>
+                ⭐ BEST PUMP BONUS (x1.5 EXP) ⭐
+              </p>
+            )}
+            
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', marginBottom: '1.5rem' }}>
+              {recordResult.details.map((detail, idx) => (
+                <ResultRow key={idx} detail={detail} />
+              ))}
+            </div>
+            
+            <button onClick={closeResultModal} style={{ width: '100%', maxWidth: '200px' }}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Evolution Modal Overlay */}
-      {evolutionAlerts.length > 0 && (
+      {(!recordResult && evolutionAlerts.length > 0) && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
             <h1 style={{ color: '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>進化！！</h1>
