@@ -862,9 +862,30 @@ function App() {
                           <span>EXP</span>
                           <span>{mStats.exp}/{reqExp}</span>
                         </div>
-                        <div className="exp-bar-container" style={{ height: '6px' }}>
+                        <div className="exp-bar-container" style={{ height: '4px', marginBottom: '6px' }}>
                           <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
                         </div>
+                        
+                        {(mStats.lastTrainedAt || 0) > 0 && (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
+                              <span>回復</span>
+                              <span style={{ color: isRecovering ? 'orange' : '#39ff14' }}>
+                                {isRecovering ? '休息中' : '完了'}
+                              </span>
+                            </div>
+                            <div className="exp-bar-container" style={{ height: '4px', backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                              <div 
+                                style={{ 
+                                  height: '100%', 
+                                  width: `${Math.min(100, Math.max(0, ((Date.now() - mStats.lastTrainedAt!) / requiredRecoveryMs) * 100))}%`,
+                                  backgroundColor: isRecovering ? 'orange' : '#39ff14',
+                                  transition: 'width 0.3s ease'
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
