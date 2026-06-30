@@ -813,6 +813,7 @@ function App() {
   };
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
         {selectedTitle && (
@@ -822,14 +823,6 @@ function App() {
         )}
         <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスル<br />モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="tab-container">
-        <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>👾 マスモン</button>
-        <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>🏋️ 筋トレ</button>
-        <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📖 ログ</button>
-        <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 称号</button>
       </div>
 
 
@@ -1301,6 +1294,15 @@ function App() {
         </div>
       )}
     </div>
+
+    {/* Navigation Tabs - Moved outside main wrapper to prevent z-index / fixed positioning issues */}
+    <div className="tab-container">
+      <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>👾 マスモン</button>
+      <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>🏋️ 筋トレ</button>
+      <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📖 ログ</button>
+      <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 称号</button>
+    </div>
+    </>
   );
 }
 
