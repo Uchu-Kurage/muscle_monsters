@@ -12,6 +12,7 @@ interface MuscleStats {
   level: number;
   exp: number;
   lastTrainedAt?: number;
+  hasProteinBonus?: boolean;
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -31,6 +32,8 @@ interface RecordResultDetail {
   newExp: number;
   newLevel: number;
   gainedExp: number;
+  isOverworked: boolean;
+  isProteinBonus: boolean;
   evolutionPhase?: number;
 }
 
@@ -369,7 +372,9 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
         <div className="result-muscle-name">
           {MUSCLE_NAMES[detail.muscle]}
           <span className="result-exp-text">
-            Lv.{currentLevel} (+{detail.gainedExp} EXP)
+            Lv.{currentLevel} <span style={{ fontWeight: 'bold', color: '#39ff14' }}>(+{detail.gainedExp} EXP)</span>
+            {detail.isOverworked && <span style={{ color: 'orange', marginLeft: '4px', fontSize: '0.8rem' }}>(疲労半減)</span>}
+            {detail.isProteinBonus && <span style={{ color: '#00ffff', marginLeft: '4px', fontSize: '0.8rem' }}>(🥤 x1.3)</span>}
           </span>
           {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
         </div>
@@ -515,17 +520,25 @@ function App() {
         const oldExp = current.exp;
         const oldLevel = current.level;
 
-        // 超回復（ペナルティ）の判定
+        // 超回復（ペナルティ）とプロテインボーナスの判定
         let expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
         const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
         const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
         
+        let isOverworked = false;
+        let isProteinBonus = false;
+
         // 初回プレイ時（lastTrainedAtが初期状態の0など）は除外するため、少し経過している前提
         if ((current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs) {
           expToAdd = Math.max(1, Math.floor(expToAdd * 0.5));
+          isOverworked = true;
           if (!newOverworkedMuscles.includes(muscle)) {
             newOverworkedMuscles.push(muscle);
           }
+        } else if (current.hasProteinBonus) {
+          // 休息完了後にプロテインボーナスが適用される
+          expToAdd = Math.max(1, Math.floor(expToAdd * 1.3));
+          isProteinBonus = true;
         }
         
         let newExp = current.exp + expToAdd;
@@ -557,13 +570,16 @@ function App() {
           newExp,
           newLevel,
           gainedExp: expToAdd,
+          isOverworked,
+          isProteinBonus,
           evolutionPhase
         });
 
         nextStats[muscle] = {
           level: newLevel,
           exp: newExp,
-          lastTrainedAt: Date.now()
+          lastTrainedAt: Date.now(),
+          hasProteinBonus: false // プロテイン効果を消費
         };
       });
       return nextStats;
@@ -767,6 +783,34 @@ function App() {
       </div>
     );
   };
+  const handleDrinkProtein = () => {
+    let appliedCount = 0;
+    setStats(prev => {
+      const nextStats = { ...prev };
+      Object.keys(nextStats).forEach(key => {
+        const muscle = key as MuscleType;
+        const current = nextStats[muscle];
+        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+        const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
+        const isRecovering = (current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+        
+        if (isRecovering && !current.hasProteinBonus) {
+          nextStats[muscle] = {
+            ...current,
+            hasProteinBonus: true
+          };
+          appliedCount++;
+        }
+      });
+      return nextStats;
+    });
+
+    if (appliedCount > 0) {
+      alert(`${appliedCount}箇所の休息中の筋肉にプロテインボーナスが適用されました！\\n次回のトレーニングで獲得EXPが1.3倍になります！`);
+    } else {
+      alert(`現在休息中の筋肉がないか、すでに全ての休息中の筋肉にボーナスが適用されています。`);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
@@ -808,7 +852,34 @@ function App() {
 
       {/* --- タブコンテンツ：キャラクター --- */}
       {activeTab === 'characters' && (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          
+          {/* プロテインボタン */}
+          <div style={{ marginBottom: '2rem', width: '100%', maxWidth: '300px' }}>
+            <button 
+              onClick={handleDrinkProtein}
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                backgroundColor: 'rgba(0, 255, 255, 0.1)', 
+                borderColor: '#00ffff', 
+                color: '#00ffff',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '1rem',
+                fontWeight: 'bold'
+              }}
+            >
+              🥤 プロテインを飲む
+            </button>
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
+              休息中の筋肉の次回の獲得EXPが1.3倍になります
+            </p>
+          </div>
+
+          <div style={{ width: '100%' }}>
           {MUSCLE_GROUPS.map(group => (
             <div key={group.id} style={{ marginBottom: '1rem' }}>
               <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
@@ -855,6 +926,11 @@ function App() {
                             💤
                           </div>
                         )}
+                        {mStats.hasProteinBonus && (
+                          <div style={{ position: 'absolute', top: '-5px', left: '5px', background: 'rgba(0, 255, 255, 0.2)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(0,255,255,0.5)', animation: 'float 2s ease-in-out infinite' }}>
+                            🥤
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ width: '100%', fontSize: '0.7rem' }}>
@@ -893,6 +969,7 @@ function App() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 
