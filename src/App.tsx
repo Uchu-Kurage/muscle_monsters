@@ -1125,7 +1125,7 @@ function App() {
 
       {/* Achievements Tab */}
       {activeTab === 'achievements' && (
-        <div className="glass-panel" style={{ animation: 'scaleIn 0.3s ease-out' }}>
+        <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>実績と称号</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
             {ACHIEVEMENTS.map(ach => {
