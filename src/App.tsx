@@ -999,24 +999,24 @@ function App() {
               </select>
             </div>
             
-            <div style={{ display: 'flex', gap: '0.8rem', width: '100%', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.8rem', width: '100%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>重量 (kg)</label>
                 {isBodyweight ? (
-                  <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '1.1rem', padding: '1rem 0' }} />
+                  <input type="text" value={`自重(${bodyWeight})`} disabled style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', padding: '1rem 0' }} />
                 ) : (
-                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>回数/秒数</label>
-                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>セット数</label>
-                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
             </div>
 
