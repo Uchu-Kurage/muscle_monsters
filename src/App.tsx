@@ -1142,11 +1142,28 @@ function App() {
 
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>💤</span> 超回復に必要な時間
+                <span>💤</span> 休息ステータス
               </h4>
-              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                {MUSCLE_RECOVERY_HOURS[selectedMuscleInfo]}時間
-              </p>
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                超回復の目安: {MUSCLE_RECOVERY_HOURS[selectedMuscleInfo]}時間<br />
+                {(() => {
+                  const mStats = stats[selectedMuscleInfo];
+                  if (!mStats.lastTrainedAt) return <span style={{ color: 'var(--text-secondary)' }}>トレーニング記録なし</span>;
+                  const requiredMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
+                  const elapsedMs = Date.now() - mStats.lastTrainedAt;
+                  if (elapsedMs >= requiredMs) {
+                    return <span style={{ color: '#39ff14' }}>回復完了！トレーニング可能です</span>;
+                  } else {
+                    const remainingHours = Math.ceil((requiredMs - elapsedMs) / (60 * 60 * 1000));
+                    return (
+                      <span style={{ color: 'orange' }}>
+                        最後に鍛えた日時: {formatDate(mStats.lastTrainedAt)}<br />
+                        回復まであと約 {remainingHours}時間
+                      </span>
+                    );
+                  }
+                })()}
+              </div>
             </div>
 
             <div style={{ marginBottom: '1.2rem' }}>
