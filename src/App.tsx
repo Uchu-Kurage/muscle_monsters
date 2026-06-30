@@ -1063,8 +1063,7 @@ function App() {
 
           <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '1.5rem', lineHeight: '1.6' }}>
             💡 8〜12回、3〜5セットで記録すると「PUMP!」ボーナス！<br />
-            ⚠️ 休息中（回復中）の部位を鍛えると、疲労のため獲得EXPが半減します。<br />
-            一覧のキャラクターカードで回復完了を確認してから筋トレしましょう！
+            ⚠️ 休息中（回復中）の部位を鍛えると、疲労のため獲得EXPが半減します。
           </p>
         </div>
       )}
