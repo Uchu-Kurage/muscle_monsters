@@ -1278,7 +1278,7 @@ function App() {
               </p>
             </div>
 
-            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', height: '40px' }}>閉じる</button>
+            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
         </div>
       )}
