@@ -471,8 +471,8 @@ function App() {
     
     if (r === 0 || s === 0) return;
 
-    const volume = w * r * s;
-    let baseGainedExp = Math.max(1, Math.floor(volume / 10));
+    // 1セットあたり 30 EXP を基本とする
+    let baseGainedExp = s * 30;
 
     const isBestPump = (r >= 8 && r <= 12 && s >= 3 && s <= 5);
     if (isBestPump) {
