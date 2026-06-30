@@ -851,8 +851,8 @@ function App() {
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
                         {isRecovering && (
-                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.2)' }}>
-                            💤 休息中
+                          <div style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(0,0,0,0.7)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                            💤
                           </div>
                         )}
                       </div>
