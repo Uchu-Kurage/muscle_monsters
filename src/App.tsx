@@ -714,8 +714,7 @@ function App() {
         isCurrentMonth: isCurrentMonth
       });
     }
-
-    const colors = ['#161b22', '#2e8b57', '#3cb371', '#32cd32', '#39ff14'];
+    const colors = ['#161b22', '#053b16', '#0b752b', '#1dd354', '#39ff14'];
     const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
     const weekLabels = ['1W', '2W', '3W', '4W', '5W', '6W'];
 
