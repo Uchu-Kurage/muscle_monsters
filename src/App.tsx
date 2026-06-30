@@ -1133,6 +1133,15 @@ function App() {
 
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>💤</span> 超回復に必要な時間
+              </h4>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_RECOVERY_HOURS[selectedMuscleInfo]}時間
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>🏋️</span> おすすめトレーニング
               </h4>
               <ul style={{ fontSize: '0.85rem', paddingLeft: '1.5rem', lineHeight: '1.5', margin: 0 }}>
