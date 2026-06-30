@@ -271,6 +271,26 @@ const MUSCLE_DETAILS: Record<MuscleType, MuscleDetail> = {
   },
 };
 
+const MUSCLE_RECOVERY_HOURS: Record<MuscleType, number> = {
+  chest: 72,
+  back: 72,
+  erector_spinae: 72,
+  legs: 72,
+  hamstrings: 72,
+  glutes: 72,
+  rhomboids: 72,
+  
+  shoulder: 48,
+  arms: 48,
+  trapezius: 48,
+  gluteus_medius: 48,
+  
+  abs: 24,
+  obliques: 24,
+  transversus_abdominis: 24,
+  iliopsoas: 24,
+};
+
 const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
 
 function getRequiredExp(level: number) {
@@ -398,6 +418,7 @@ function App() {
 
   const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number }[]>([]);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
+  const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
@@ -483,17 +504,29 @@ function App() {
 
     const details: RecordResultDetail[] = [];
     const newEvolutions: { muscle: MuscleType, phase: number }[] = [];
+    const newOverworkedMuscles: MuscleType[] = [];
 
     setStats(prev => {
       const nextStats = { ...prev };
       
       selectedExercise.targets.forEach(target => {
         const muscle = target.muscle;
-        const expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
-        
         const current = nextStats[muscle];
         const oldExp = current.exp;
         const oldLevel = current.level;
+
+        // 超回復（ペナルティ）の判定
+        let expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
+        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+        const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
+        
+        // 初回プレイ時（lastTrainedAtが初期状態の0など）は除外するため、少し経過している前提
+        if ((current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs) {
+          expToAdd = Math.max(1, Math.floor(expToAdd * 0.5));
+          if (!newOverworkedMuscles.includes(muscle)) {
+            newOverworkedMuscles.push(muscle);
+          }
+        }
         
         let newExp = current.exp + expToAdd;
         let newLevel = current.level;
@@ -536,6 +569,10 @@ function App() {
       return nextStats;
     });
     
+    if (newOverworkedMuscles.length > 0) {
+      setOverworkAlerts(newOverworkedMuscles);
+    }
+
     // We need nextStats reference outside for achievement check. 
     // Since setStats is async, we simulate it here for check.
     const nextStatsToUse = { ...stats };
@@ -750,6 +787,15 @@ function App() {
         <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📖 ログ</button>
         <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 称号</button>
       </div>
+
+      {overworkAlerts.length > 0 && (
+        <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ color: 'orange' }}>⚠️ オーバーワーク注意！</h3>
+          <p>以下の筋肉は超回復（十分な休息）が終わる前にトレーニングされたため、今回の獲得EXPが半減しました。筋肉の成長には休息も重要です！</p>
+          <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{overworkAlerts.map(m => MUSCLE_NAMES[m]).join('、')}</p>
+          <button onClick={() => setOverworkAlerts([])} style={{ borderColor: 'orange', color: 'orange', marginTop: '1rem' }}>確認した</button>
+        </div>
+      )}
 
       {detrainAlert.length > 0 && (
         <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center', marginBottom: '1rem' }}>
