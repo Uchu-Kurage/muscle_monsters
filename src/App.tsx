@@ -1019,7 +1019,7 @@ function App() {
                             💤
                           </div>
                         )}
-                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : 'var(--text-secondary)', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : '#39ff14', fontWeight: isRecovering ? 'normal' : 'bold', marginTop: '2px' }}>
                           {MUSCLE_NAMES[target.muscle]}
                         </span>
                       </div>
