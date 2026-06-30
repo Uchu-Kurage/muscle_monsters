@@ -37,7 +37,7 @@ body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start; /* Changed from center to flex-start to prevent top-clipping and fixed positioning bugs when content exceeds viewport */
   background-image: 
     radial-gradient(circle at 50% 50%, rgba(20, 20, 40, 1) 0%, rgba(10, 10, 20, 1) 100%),
     linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
