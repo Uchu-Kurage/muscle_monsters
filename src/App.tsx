@@ -1214,42 +1214,6 @@ function App() {
                 <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
                 <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
               </div>
-              
-              {/* EXP Bar */}
-              <div style={{ marginBottom: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                  <span>EXP</span>
-                  <span>{stats[selectedMuscleInfo].exp} / {getRequiredExp(stats[selectedMuscleInfo].level)}</span>
-                </div>
-                <div className="exp-bar-container" style={{ height: '6px', margin: 0 }}>
-                  <div className="exp-bar-fill" style={{ width: `${Math.min(100, (stats[selectedMuscleInfo].exp / getRequiredExp(stats[selectedMuscleInfo].level)) * 100)}%` }}></div>
-                </div>
-              </div>
-
-              {/* Recovery Bar */}
-              {(stats[selectedMuscleInfo].lastTrainedAt || 0) > 0 && (() => {
-                const requiredMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
-                const elapsedMs = Date.now() - stats[selectedMuscleInfo].lastTrainedAt!;
-                const isRecovering = elapsedMs < requiredMs;
-                return (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                      <span>回復ステータス</span>
-                      <span style={{ color: isRecovering ? 'orange' : '#39ff14' }}>{isRecovering ? '休息中' : '完了'}</span>
-                    </div>
-                    <div className="exp-bar-container" style={{ height: '6px', margin: 0, backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                      <div 
-                        style={{ 
-                          height: '100%', 
-                          width: `${Math.min(100, Math.max(0, (elapsedMs / requiredMs) * 100))}%`,
-                          backgroundColor: isRecovering ? 'orange' : '#39ff14',
-                          transition: 'width 0.3s ease'
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
