@@ -996,6 +996,27 @@ function App() {
                   </option>
                 ))}
               </select>
+
+              {selectedExercise && (
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', width: '100%', textAlign: 'center', marginBottom: '4px' }}>対象のマスモン</span>
+                  {selectedExercise.targets.map(target => {
+                    const phase = getEvolutionPhase(stats[target.muscle].level);
+                    return (
+                      <div key={target.muscle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <img 
+                          src={`/assets/${target.muscle}_${phase}.png`} 
+                          alt={target.muscle} 
+                          style={{ height: '40px', objectFit: 'contain' }}
+                        />
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {MUSCLE_NAMES[target.muscle]}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.8rem', width: '100%' }}>
