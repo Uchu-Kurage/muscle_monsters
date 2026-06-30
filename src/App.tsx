@@ -832,27 +832,29 @@ function App() {
         <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 称号</button>
       </div>
 
-      {overworkAlerts.length > 0 && (
-        <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ color: 'orange' }}>⚠️ オーバーワーク注意！</h3>
-          <p>以下の筋肉は超回復（十分な休息）が終わる前にトレーニングされたため、今回の獲得EXPが半減しました。筋肉の成長には休息も重要です！</p>
-          <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{overworkAlerts.map(m => MUSCLE_NAMES[m]).join('、')}</p>
-          <button onClick={() => setOverworkAlerts([])} style={{ borderColor: 'orange', color: 'orange', marginTop: '1rem' }}>確認した</button>
-        </div>
-      )}
 
-      {detrainAlert.length > 0 && (
-        <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ color: '#ff4444' }}>⚠️ 筋肉ダウンのお知らせ</h3>
-          <p>14日間以上トレーニングをサボったため、以下の筋肉が落ちて（EXP半減）しまいました…</p>
-          <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{detrainAlert.join('、')}</p>
-          <button onClick={() => setDetrainAlert([])} style={{ borderColor: 'red', color: 'red', marginTop: '1rem' }}>確認した</button>
-        </div>
-      )}
 
       {/* --- タブコンテンツ：キャラクター --- */}
       {activeTab === 'characters' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          
+          {overworkAlerts.length > 0 && (
+            <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
+              <h3 style={{ color: 'orange' }}>⚠️ オーバーワーク注意！</h3>
+              <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>超回復前にトレーニングしたため獲得EXPが半減しました。</p>
+              <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{overworkAlerts.map(m => MUSCLE_NAMES[m]).join('、')}</p>
+              <button onClick={() => setOverworkAlerts([])} style={{ borderColor: 'orange', color: 'orange', marginTop: '0.5rem', padding: '0.5rem 1rem' }}>確認した</button>
+            </div>
+          )}
+
+          {detrainAlert.length > 0 && (
+            <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
+              <h3 style={{ color: '#ff4444' }}>⚠️ 筋肉ダウンのお知らせ</h3>
+              <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>14日間以上トレーニングをサボったため、筋肉が落ちて（EXP半減）しまいました…</p>
+              <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{detrainAlert.join('、')}</p>
+              <button onClick={() => setDetrainAlert([])} style={{ borderColor: 'red', color: 'red', marginTop: '0.5rem', padding: '0.5rem 1rem' }}>確認した</button>
+            </div>
+          )}
           
           {/* プロテインボタン */}
           <div style={{ marginBottom: '2rem', width: '100%', maxWidth: '300px' }}>
@@ -888,8 +890,6 @@ function App() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem' }}>
                 {group.muscles.map(muscle => {
                   const mStats = stats[muscle];
-                  const reqExp = getRequiredExp(mStats.level);
-                  const progress = (mStats.exp / reqExp) * 100;
                   const isBestPump = bestPumpAlert === muscle;
                   const phase = getEvolutionPhase(mStats.level);
 
@@ -933,36 +933,6 @@ function App() {
                         )}
                       </div>
 
-                      <div style={{ width: '100%', fontSize: '0.7rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                          <span>EXP</span>
-                          <span>{mStats.exp}/{reqExp}</span>
-                        </div>
-                        <div className="exp-bar-container" style={{ height: '4px', marginBottom: '6px' }}>
-                          <div className="exp-bar-fill" style={{ width: `${progress}%` }}></div>
-                        </div>
-                        
-                        {(mStats.lastTrainedAt || 0) > 0 && (
-                          <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
-                              <span>回復</span>
-                              <span style={{ color: isRecovering ? 'orange' : '#39ff14' }}>
-                                {isRecovering ? '休息中' : '完了'}
-                              </span>
-                            </div>
-                            <div className="exp-bar-container" style={{ height: '4px', backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                              <div 
-                                style={{ 
-                                  height: '100%', 
-                                  width: `${Math.min(100, Math.max(0, ((Date.now() - mStats.lastTrainedAt!) / requiredRecoveryMs) * 100))}%`,
-                                  backgroundColor: isRecovering ? 'orange' : '#39ff14',
-                                  transition: 'width 0.3s ease'
-                                }}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
                     </div>
                   );
                 })}
@@ -993,11 +963,15 @@ function App() {
             </div>
           </div>
 
-          <form onSubmit={handleRecord} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'flex-end' }}>
+          <form onSubmit={handleRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '300px' }}>
-              <label>トレーニング種目</label>
-              <select value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+              <label style={{ fontSize: '1.1rem', color: 'var(--text-accent)' }}>🏋️ トレーニング種目</label>
+              <select 
+                value={selectedExerciseId} 
+                onChange={e => setSelectedExerciseId(e.target.value)}
+                style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
+              >
                 {EXERCISES.map(ex => (
                   <option key={ex.id} value={ex.id}>
                     {ex.name}
@@ -1006,28 +980,30 @@ function App() {
               </select>
             </div>
             
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-                <label style={{ fontSize: '0.8rem' }}>重量 (kg)</label>
+            <div style={{ display: 'flex', gap: '0.8rem', width: '100%', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>重量 (kg)</label>
                 {isBodyweight ? (
-                  <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.8rem', padding: '0' }} />
+                  <input type="text" value={`自重(${bodyWeight})`} disabled style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '1.1rem', padding: '1rem 0' }} />
                 ) : (
-                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required />
+                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-                <label style={{ fontSize: '0.8rem' }}>回数/秒数</label>
-                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>回数/秒数</label>
+                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '85px' }}>
-                <label style={{ fontSize: '0.8rem' }}>セット数</label>
-                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>セット数</label>
+                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required style={{ textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
             </div>
 
-            <button type="submit" style={{ height: '45px', width: '100%', maxWidth: '300px', marginTop: '1rem' }}>記録する</button>
+            <button type="submit" style={{ width: '100%', marginTop: '1rem', padding: '1rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
+              💪 記録する
+            </button>
           </form>
           
           {recordSuccess && (
@@ -1214,13 +1190,47 @@ function App() {
       {selectedMuscleInfo && (
         <div className="modal-overlay" onClick={() => setSelectedMuscleInfo(null)}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-              <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
-                <br/>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>EXP: {stats[selectedMuscleInfo].exp}/{getRequiredExp(stats[selectedMuscleInfo].level)}</span>
+            <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
               </div>
+              
+              {/* EXP Bar */}
+              <div style={{ marginBottom: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                  <span>EXP</span>
+                  <span>{stats[selectedMuscleInfo].exp} / {getRequiredExp(stats[selectedMuscleInfo].level)}</span>
+                </div>
+                <div className="exp-bar-container" style={{ height: '6px', margin: 0 }}>
+                  <div className="exp-bar-fill" style={{ width: `${Math.min(100, (stats[selectedMuscleInfo].exp / getRequiredExp(stats[selectedMuscleInfo].level)) * 100)}%` }}></div>
+                </div>
+              </div>
+
+              {/* Recovery Bar */}
+              {(stats[selectedMuscleInfo].lastTrainedAt || 0) > 0 && (() => {
+                const requiredMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
+                const elapsedMs = Date.now() - stats[selectedMuscleInfo].lastTrainedAt!;
+                const isRecovering = elapsedMs < requiredMs;
+                return (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                      <span>回復ステータス</span>
+                      <span style={{ color: isRecovering ? 'orange' : '#39ff14' }}>{isRecovering ? '休息中' : '完了'}</span>
+                    </div>
+                    <div className="exp-bar-container" style={{ height: '6px', margin: 0, backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                      <div 
+                        style={{ 
+                          height: '100%', 
+                          width: `${Math.min(100, Math.max(0, (elapsedMs / requiredMs) * 100))}%`,
+                          backgroundColor: isRecovering ? 'orange' : '#39ff14',
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
