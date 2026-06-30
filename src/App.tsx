@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
@@ -811,6 +811,19 @@ function App() {
     }
   };
 
+  const recommendedExercises = useMemo(() => {
+    const safeExercises = EXERCISES.filter(ex => {
+      return ex.targets.every(target => {
+        const mStats = stats[target.muscle];
+        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[target.muscle] * 60 * 60 * 1000;
+        const timeSinceLastTraining = Date.now() - (mStats?.lastTrainedAt || 0);
+        return !((mStats?.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs);
+      });
+    });
+    // Shuffle safely inside useMemo so it only changes when stats change
+    return safeExercises.sort(() => 0.5 - Math.random()).slice(0, 3);
+  }, [stats]);
+
   return (
     <>
     <div className="main-content">
@@ -984,6 +997,33 @@ function App() {
           <form onSubmit={handleRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+              {recommendedExercises.length > 0 && (
+                <div style={{ background: 'rgba(57, 255, 20, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid #39ff14', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#39ff14', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>✨</span> おすすめトレーニング
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {recommendedExercises.map(ex => (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => setSelectedExerciseId(ex.id)}
+                        style={{ 
+                          padding: '0.4rem 0.8rem', 
+                          fontSize: '0.85rem', 
+                          background: selectedExerciseId === ex.id ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.5)',
+                          color: selectedExerciseId === ex.id ? 'var(--btn-hover-text)' : 'var(--text-primary)',
+                          border: `1px solid ${selectedExerciseId === ex.id ? '#39ff14' : 'var(--border-color)'}`,
+                          textTransform: 'none'
+                        }}
+                      >
+                        {ex.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <label style={{ fontSize: '1.1rem', color: 'var(--text-accent)' }}>🏋️ トレーニング種目</label>
               <select 
                 value={selectedExerciseId} 
