@@ -822,6 +822,10 @@ function App() {
                   const isBestPump = bestPumpAlert === muscle;
                   const phase = getEvolutionPhase(mStats.level);
 
+                  const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+                  const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
+                  const isRecovering = (mStats.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+
                   return (
                     <div 
                       key={muscle} 
@@ -839,13 +843,18 @@ function App() {
                       <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{MUSCLE_NAMES[muscle]}</h3>
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
-                      <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0' }}>
+                      <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
                         <img 
                           src={`/assets/${muscle}_${phase}.png`} 
                           alt={muscle} 
                           className={`monster-image`}
-                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
+                        {isRecovering && (
+                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.2)' }}>
+                            💤 休息中
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ width: '100%', fontSize: '0.7rem' }}>
