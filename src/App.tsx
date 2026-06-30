@@ -1001,15 +1001,25 @@ function App() {
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '8px' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', width: '100%', textAlign: 'center', marginBottom: '4px' }}>対象のマスモン</span>
                   {selectedExercise.targets.map(target => {
-                    const phase = getEvolutionPhase(stats[target.muscle].level);
+                    const mStats = stats[target.muscle];
+                    const phase = getEvolutionPhase(mStats.level);
+                    const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[target.muscle] * 60 * 60 * 1000;
+                    const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
+                    const isRecovering = (mStats.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+
                     return (
-                      <div key={target.muscle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div key={target.muscle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                         <img 
                           src={`/assets/${target.muscle}_${phase}.png`} 
                           alt={target.muscle} 
-                          style={{ height: '40px', objectFit: 'contain' }}
+                          style={{ height: '40px', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {isRecovering && (
+                          <div style={{ position: 'absolute', top: '-5px', right: '-10px', background: 'rgba(0,0,0,0.7)', padding: '1px', borderRadius: '50%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                            💤
+                          </div>
+                        )}
+                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : 'var(--text-secondary)', marginTop: '2px' }}>
                           {MUSCLE_NAMES[target.muscle]}
                         </span>
                       </div>
