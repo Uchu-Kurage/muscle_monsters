@@ -945,7 +945,7 @@ function App() {
 
       {/* --- タブコンテンツ：筋トレ記録 --- */}
       {activeTab === 'record' && (
-        <div className="glass-panel" style={{ marginTop: '0', position: 'relative' }}>
+        <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレを記録する</h2>
           
           {/* 体重設定セクション */}
