@@ -235,7 +235,7 @@ input:focus, select:focus {
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border-color);
   padding: 0.8rem 0.5rem;
-  z-index: 100;
+  z-index: 999;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
 }
 
