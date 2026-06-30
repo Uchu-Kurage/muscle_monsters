@@ -776,7 +776,7 @@ function App() {
             【{selectedTitle}】
           </div>
         )}
-        <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスルモンスターズ</h1>
+        <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスル<br />モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
       </div>
 
