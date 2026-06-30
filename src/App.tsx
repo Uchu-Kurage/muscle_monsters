@@ -814,7 +814,7 @@ function App() {
 
   return (
     <>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', paddingBottom: '2rem' }}>
+    <div className="main-content">
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
         {selectedTitle && (
           <div style={{ color: '#ffea00', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '0.5rem', animation: 'float 3s ease-in-out infinite' }}>
