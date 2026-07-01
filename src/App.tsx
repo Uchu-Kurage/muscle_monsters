@@ -426,6 +426,23 @@ function App() {
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
+
+  // ヘルパー: 指定した筋肉が「休息中」かどうかを判定する
+  // 今日トレーニングした筋肉は、その日のうちはペナルティ回避のため休息中とはみなさない
+  const checkIsRecovering = (muscle: MuscleType, currentStats: AppState) => {
+    const mStats = currentStats[muscle];
+    const lastTrainedAt = mStats?.lastTrainedAt || 0;
+    if (lastTrainedAt === 0) return false;
+
+    const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+    const timeSinceLastTraining = Date.now() - lastTrainedAt;
+
+    // 前回のトレーニングが今日なら、ペナルティなし
+    const isTrainedToday = new Date(lastTrainedAt).toDateString() === new Date().toDateString();
+
+    return timeSinceLastTraining < requiredRecoveryMs && !isTrainedToday;
+  };
+
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean } | null>(null);
@@ -523,14 +540,12 @@ function App() {
 
         // 超回復（ペナルティ）とプロテインボーナスの判定
         let expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
-        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
-        const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
+        const isRecovering = checkIsRecovering(muscle, prev);
         
         let isOverworked = false;
         let isProteinBonus = false;
 
-        // 初回プレイ時（lastTrainedAtが初期状態の0など）は除外するため、少し経過している前提
-        if ((current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs) {
+        if (isRecovering) {
           expToAdd = Math.max(1, Math.floor(expToAdd * 0.5));
           isOverworked = true;
           if (!newOverworkedMuscles.includes(muscle)) {
@@ -790,9 +805,7 @@ function App() {
       Object.keys(nextStats).forEach(key => {
         const muscle = key as MuscleType;
         const current = nextStats[muscle];
-        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
-        const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
-        const isRecovering = (current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+        const isRecovering = checkIsRecovering(muscle, prev);
         
         if (isRecovering && !current.hasProteinBonus) {
           nextStats[muscle] = {
@@ -814,12 +827,7 @@ function App() {
 
   const recommendedExercises = useMemo(() => {
     const safeExercises = EXERCISES.filter(ex => {
-      return ex.targets.every(target => {
-        const mStats = stats[target.muscle];
-        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[target.muscle] * 60 * 60 * 1000;
-        const timeSinceLastTraining = Date.now() - (mStats?.lastTrainedAt || 0);
-        return !((mStats?.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs);
-      });
+      return ex.targets.every(target => !checkIsRecovering(target.muscle, stats));
     });
     // Shuffle safely inside useMemo so it only changes when stats change
     return safeExercises.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -1044,9 +1052,7 @@ function App() {
                   {selectedExercise.targets.map(target => {
                     const mStats = stats[target.muscle];
                     const phase = getEvolutionPhase(mStats.level);
-                    const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[target.muscle] * 60 * 60 * 1000;
-                    const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
-                    const isRecovering = (mStats.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+                    const isRecovering = checkIsRecovering(target.muscle, stats);
 
                     return (
                       <div key={target.muscle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
@@ -1323,7 +1329,9 @@ function App() {
                   if (!mStats.lastTrainedAt) return <span style={{ color: 'var(--text-secondary)' }}>トレーニング記録なし</span>;
                   const requiredMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
                   const elapsedMs = Date.now() - mStats.lastTrainedAt;
-                  if (elapsedMs >= requiredMs) {
+                  const isTrainedToday = new Date(mStats.lastTrainedAt).toDateString() === new Date().toDateString();
+
+                  if (elapsedMs >= requiredMs || isTrainedToday) {
                     return <span style={{ color: '#39ff14' }}>回復完了！トレーニング可能です</span>;
                   } else {
                     const remainingHours = Math.ceil((requiredMs - elapsedMs) / (60 * 60 * 1000));
