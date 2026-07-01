@@ -13,6 +13,7 @@ interface MuscleStats {
   exp: number;
   lastTrainedAt?: number;
   hasProteinBonus?: boolean;
+  proteinBonusMultiplier?: number;
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -551,8 +552,11 @@ function App() {
           if (!newOverworkedMuscles.includes(muscle)) {
             newOverworkedMuscles.push(muscle);
           }
+        } else if (current.proteinBonusMultiplier) {
+          expToAdd = Math.max(1, Math.floor(expToAdd * current.proteinBonusMultiplier));
+          isProteinBonus = true;
         } else if (current.hasProteinBonus) {
-          // 休息完了後にプロテインボーナスが適用される
+          // 下位互換性
           expToAdd = Math.max(1, Math.floor(expToAdd * 1.3));
           isProteinBonus = true;
         }
@@ -595,7 +599,8 @@ function App() {
           level: newLevel,
           exp: newExp,
           lastTrainedAt: Date.now(),
-          hasProteinBonus: false // プロテイン効果を消費
+          hasProteinBonus: false, // プロテイン効果を消費
+          proteinBonusMultiplier: undefined
         };
       });
       return nextStats;
@@ -799,33 +804,58 @@ function App() {
     );
   };
   const handleDrinkProtein = () => {
-    let appliedCount = 0;
+    let appliedGoldenCount = 0;
+    let appliedNormalCount = 0;
+
     setStats(prev => {
       const nextStats = { ...prev };
       Object.keys(nextStats).forEach(key => {
         const muscle = key as MuscleType;
         const current = nextStats[muscle];
         
-        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
         const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
-        // ダメージを負っている（回復時間が過ぎていない）筋肉であればプロテインを飲める
-        const isDamaged = (current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
-        
-        if (isDamaged && !current.hasProteinBonus) {
+        const fortyMinutesMs = 40 * 60 * 1000;
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+
+        // まだトレーニングしたことがない部位は無効
+        if ((current.lastTrainedAt || 0) === 0) return;
+
+        // ボーナス倍率の判定
+        let newMultiplier = current.proteinBonusMultiplier || (current.hasProteinBonus ? 1.3 : 1.0);
+        let updated = false;
+
+        if (timeSinceLastTraining <= fortyMinutesMs) {
+          if (newMultiplier < 1.5) {
+            newMultiplier = 1.5;
+            appliedGoldenCount++;
+            updated = true;
+          }
+        } else if (timeSinceLastTraining <= twoHoursMs) {
+          if (newMultiplier < 1.3) {
+            newMultiplier = 1.3;
+            appliedNormalCount++;
+            updated = true;
+          }
+        }
+
+        if (updated) {
           nextStats[muscle] = {
             ...current,
-            hasProteinBonus: true
+            hasProteinBonus: false, // 過去のフラグをクリア
+            proteinBonusMultiplier: newMultiplier
           };
-          appliedCount++;
         }
       });
       return nextStats;
     });
 
-    if (appliedCount > 0) {
-      alert(`${appliedCount}箇所の筋肉にプロテインボーナスが適用されました！\\n次回のトレーニングで獲得EXPが1.3倍になります！`);
+    if (appliedGoldenCount > 0 || appliedNormalCount > 0) {
+      let msg = "";
+      if (appliedGoldenCount > 0) msg += `${appliedGoldenCount}箇所の筋肉にゴールデンタイムボーナス（次回EXP1.5倍）が適用されました！\\n`;
+      if (appliedNormalCount > 0) msg += `${appliedNormalCount}箇所の筋肉に通常プロテインボーナス（次回EXP1.3倍）が適用されました！`;
+      alert(msg.trim());
     } else {
-      alert(`現在プロテインを必要としている筋肉がないか、すでに全ての対象部位にボーナスが適用されています。`);
+      alert(`筋トレ後2時間以内の筋肉がないか、すでに全ての対象部位により高いボーナスが適用されています。\\n※プロテイン効果は筋トレ後2時間以内のみ有効です！`);
     }
   };
 
