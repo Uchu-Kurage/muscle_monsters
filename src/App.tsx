@@ -805,9 +805,13 @@ function App() {
       Object.keys(nextStats).forEach(key => {
         const muscle = key as MuscleType;
         const current = nextStats[muscle];
-        const isRecovering = checkIsRecovering(muscle, prev);
         
-        if (isRecovering && !current.hasProteinBonus) {
+        const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+        const timeSinceLastTraining = Date.now() - (current.lastTrainedAt || 0);
+        // ダメージを負っている（回復時間が過ぎていない）筋肉であればプロテインを飲める
+        const isDamaged = (current.lastTrainedAt || 0) > 0 && timeSinceLastTraining < requiredRecoveryMs;
+        
+        if (isDamaged && !current.hasProteinBonus) {
           nextStats[muscle] = {
             ...current,
             hasProteinBonus: true
@@ -819,9 +823,9 @@ function App() {
     });
 
     if (appliedCount > 0) {
-      alert(`${appliedCount}箇所の休息中の筋肉にプロテインボーナスが適用されました！\\n次回のトレーニングで獲得EXPが1.3倍になります！`);
+      alert(`${appliedCount}箇所の筋肉にプロテインボーナスが適用されました！\\n次回のトレーニングで獲得EXPが1.3倍になります！`);
     } else {
-      alert(`現在休息中の筋肉がないか、すでに全ての休息中の筋肉にボーナスが適用されています。`);
+      alert(`現在プロテインを必要としている筋肉がないか、すでに全ての対象部位にボーナスが適用されています。`);
     }
   };
 
