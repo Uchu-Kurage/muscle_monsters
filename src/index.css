@@ -258,15 +258,26 @@ input:focus, select:focus {
   font-family: var(--font-pixel);
   background: transparent;
   border: none;
+  box-shadow: none;
   color: var(--text-secondary);
   padding: 0.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 1.8rem; /* Increased for emoji-only display */
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 2px;
   flex: 1;
+}
+
+.tab-button .tab-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.tab-button .tab-label {
+  font-size: 0.65rem;
+  letter-spacing: 1px;
 }
 
 .tab-button.active {
