@@ -946,7 +946,8 @@ function App() {
                   const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
                   const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
                   const isRecovering = checkIsRecovering(muscle, stats);
-                  
+                  const isTrainedToday = (mStats.lastTrainedAt || 0) > 0 && new Date(mStats.lastTrainedAt!).toDateString() === new Date().toDateString();
+
                   // プロテインボーナス関連の判定
                   const isProteinTarget = (mStats.lastTrainedAt || 0) > 0 && timeSinceLastTraining <= 2 * 60 * 60 * 1000 && !mStats.proteinBonusMultiplier && !mStats.hasProteinBonus;
                   const hasGoldenBonus = mStats.proteinBonusMultiplier === 1.5;
@@ -955,9 +956,13 @@ function App() {
                   return (
                     <div 
                       key={muscle} 
-                      className="glass-panel muscle-card" 
+                      className="glass-panel muscle-card"
                       onClick={() => setSelectedMuscleInfo(muscle)}
-                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        borderColor: isTrainedToday ? '#39ff14' : undefined,
+                        boxShadow: isTrainedToday ? '0 0 16px rgba(57, 255, 20, 0.35)' : undefined
+                      }}
                     >
                       
                       {isBestPump && (
@@ -966,7 +971,18 @@ function App() {
                         </div>
                       )}
 
-                      <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{MUSCLE_NAMES[muscle]}</h3>
+                      <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {MUSCLE_NAMES[muscle]}
+                        {isTrainedToday && (
+                          <span
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content="本日トレーニング済み！"
+                            style={{ fontSize: '0.75rem', color: '#39ff14' }}
+                          >
+                            ✅
+                          </span>
+                        )}
+                      </h3>
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
                       <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
