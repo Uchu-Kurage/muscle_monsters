@@ -925,7 +925,7 @@ function App() {
               🥤 プロテインを飲む
             </button>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
-              休息中の筋肉の次回の獲得EXPが1.3倍になります
+              筋トレ後2時間以内にプロテインを飲むことで次回筋トレ時にEXPボーナスが付与されます
             </p>
           </div>
 
