@@ -1104,11 +1104,19 @@ function App() {
                 onChange={e => setSelectedExerciseId(e.target.value)}
                 style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
               >
-                {EXERCISES.map(ex => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.name}
-                  </option>
-                ))}
+                {MUSCLE_GROUPS.map(group => {
+                  const groupExercises = EXERCISES.filter(ex => group.muscles.includes(ex.primaryMuscle));
+                  if (groupExercises.length === 0) return null;
+                  return (
+                    <optgroup key={group.id} label={group.title}>
+                      {groupExercises.map(ex => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
 
               {selectedExercise && (
@@ -1439,10 +1447,22 @@ function App() {
 
     {/* Navigation Tabs - Moved outside main wrapper to prevent z-index / fixed positioning issues */}
     <div className="tab-container">
-      <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>👾</button>
-      <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>🏋️</button>
-      <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📖</button>
-      <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆</button>
+      <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>
+        <span className="tab-icon">👾</span>
+        <span className="tab-label">モンスター</span>
+      </button>
+      <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>
+        <span className="tab-icon">🏋️</span>
+        <span className="tab-label">記録</span>
+      </button>
+      <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
+        <span className="tab-icon">📖</span>
+        <span className="tab-label">履歴</span>
+      </button>
+      <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>
+        <span className="tab-icon">🏆</span>
+        <span className="tab-label">実績</span>
+      </button>
     </div>
     </>
   );
