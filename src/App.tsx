@@ -317,6 +317,44 @@ function formatDate(ms: number): string {
   return `${m}/${d} ${hh}:${mm}`;
 }
 
+// 種目名から定義を逆引きするマップ（履歴分析でターゲット部位を辿るのに使う）
+const EXERCISE_BY_NAME: Record<string, ExerciseDef> = Object.fromEntries(
+  EXERCISES.map(ex => [ex.name, ex])
+);
+
+// 各筋肉が属する部位グループのID（バランス集計用）
+const MUSCLE_TO_GROUP: Record<MuscleType, string> = (() => {
+  const map = {} as Record<MuscleType, string>;
+  MUSCLE_GROUPS.forEach(g => g.muscles.forEach(m => { map[m] = g.id; }));
+  return map;
+})();
+
+// レーダーチャート用の短いグループ名
+const GROUP_SHORT: Record<string, string> = {
+  chest: '胸部',
+  back: '背部',
+  shoulder_arms: '肩・腕',
+  abs_core: '腹・体幹',
+  legs_glutes: '脚・尻',
+};
+
+const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
+
+// 総挙上重量を身近なものに例える（数字を眺めて楽しくするための演出）
+function formatVolumeComparison(kg: number): string {
+  const tiers = [
+    { unit: 150000, emoji: '🐋', name: 'シロナガスクジラ', suffix: '頭' },
+    { unit: 6000, emoji: '🐘', name: 'アフリカ象', suffix: '頭' },
+    { unit: 1500, emoji: '🚗', name: '乗用車', suffix: '台' },
+    { unit: 130, emoji: '🐼', name: 'ジャイアントパンダ', suffix: '頭' },
+    { unit: 10, emoji: '🍚', name: '米袋(10kg)', suffix: '袋' },
+  ];
+  const tier = tiers.find(t => kg >= t.unit) ?? tiers[tiers.length - 1];
+  const n = kg / tier.unit;
+  const nStr = n >= 10 ? Math.round(n).toLocaleString() : n.toFixed(1);
+  return `${tier.emoji} ${tier.name} 約${nStr}${tier.suffix}分！`;
+}
+
 function ResultRow({ detail }: { detail: RecordResultDetail }) {
   const [currentExp, setCurrentExp] = useState(detail.oldExp);
   const [currentLevel, setCurrentLevel] = useState(detail.oldLevel);
@@ -892,6 +930,259 @@ function App() {
     return safeExercises.sort(() => 0.5 - Math.random()).slice(0, 3);
   }, [stats]);
 
+  // 履歴タブのダッシュボード用の集計データ
+  const analytics = useMemo(() => {
+    const logs = trainingLogs;
+
+    const totalSets = logs.reduce((a, l) => a + l.sets, 0);
+    const totalReps = logs.reduce((a, l) => a + l.reps * l.sets, 0);
+    const totalVolume = logs.reduce((a, l) => a + l.weight * l.reps * l.sets, 0);
+    const totalExp = logs.reduce((a, l) => a + l.gainedExp, 0);
+
+    const trainedDates = new Set(logs.map(l => new Date(l.timestamp).toDateString()));
+    const totalDays = trainedDates.size;
+
+    // 連続記録日数（今日を含む。今日未記録なら昨日を起点に遡ってカウント）
+    const dayMs = 24 * 60 * 60 * 1000;
+    let streak = 0;
+    let cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    if (!trainedDates.has(cursor.toDateString())) {
+      cursor = new Date(cursor.getTime() - dayMs);
+    }
+    while (trainedDates.has(cursor.toDateString())) {
+      streak++;
+      cursor = new Date(cursor.getTime() - dayMs);
+    }
+
+    const totalLevel = (Object.keys(stats) as MuscleType[]).reduce((a, m) => a + stats[m].level, 0);
+
+    // 部位グループ別バランス（セット数 × EXP比率を集計）
+    const groupScore: Record<string, number> = {};
+    MUSCLE_GROUPS.forEach(g => { groupScore[g.id] = 0; });
+    logs.forEach(l => {
+      const ex = EXERCISE_BY_NAME[l.exerciseName];
+      if (!ex) return;
+      ex.targets.forEach(t => {
+        const gid = MUSCLE_TO_GROUP[t.muscle];
+        if (gid) groupScore[gid] += l.sets * t.expRatio;
+      });
+    });
+    const groupMax = Math.max(1, ...Object.values(groupScore));
+
+    // 種目別ランキング（累計セット数の多い順トップ5）
+    const exAgg: Record<string, { name: string; sets: number; count: number }> = {};
+    logs.forEach(l => {
+      if (!exAgg[l.exerciseName]) exAgg[l.exerciseName] = { name: l.exerciseName, sets: 0, count: 0 };
+      exAgg[l.exerciseName].sets += l.sets;
+      exAgg[l.exerciseName].count += 1;
+    });
+    const topExercises = Object.values(exAgg).sort((a, b) => b.sets - a.sets).slice(0, 5);
+    const topExerciseMax = Math.max(1, ...topExercises.map(e => e.sets));
+
+    // 曜日別トレーニング回数（月〜日）
+    const weekdayCount = [0, 0, 0, 0, 0, 0, 0];
+    logs.forEach(l => {
+      const d = new Date(l.timestamp).getDay();
+      weekdayCount[d === 0 ? 6 : d - 1] += 1;
+    });
+    const weekdayMax = Math.max(1, ...weekdayCount);
+    const favWeekdayIdx = logs.length > 0 ? weekdayCount.indexOf(Math.max(...weekdayCount)) : -1;
+
+    return {
+      totalSets, totalReps, totalVolume, totalExp, totalDays, streak, totalLevel,
+      groupScore, groupMax, topExercises, topExerciseMax,
+      weekdayCount, weekdayMax, favWeekdayIdx,
+    };
+  }, [trainingLogs, stats]);
+
+  // 分析ダッシュボードの描画
+  const renderDashboard = () => {
+    const a = analytics;
+
+    // --- 部位バランス レーダーチャート（五角形）---
+    const size = 210;
+    const cx = size / 2;
+    const cy = size / 2;
+    const R = 68;
+    const groupsInOrder = MUSCLE_GROUPS;
+    const n = groupsInOrder.length;
+    const angleFor = (i: number) => (-90 + i * (360 / n)) * Math.PI / 180;
+    const pointAt = (i: number, r: number): [number, number] => [
+      cx + r * Math.cos(angleFor(i)),
+      cy + r * Math.sin(angleFor(i)),
+    ];
+    const ringLevels = [0.25, 0.5, 0.75, 1];
+    const ringPoints = (frac: number) =>
+      groupsInOrder.map((_, i) => pointAt(i, R * frac).join(',')).join(' ');
+    const dataPoints = groupsInOrder
+      .map((g, i) => pointAt(i, R * (a.groupScore[g.id] / a.groupMax)).join(','))
+      .join(' ');
+
+    const statTiles = [
+      { icon: '📅', label: 'トレ日数', value: `${a.totalDays}`, unit: '日', color: '#00ffff' },
+      { icon: '🔥', label: '連続記録', value: `${a.streak}`, unit: '日', color: '#ff8c00' },
+      { icon: '💪', label: '総セット', value: `${a.totalSets.toLocaleString()}`, unit: 'set', color: '#39ff14' },
+      { icon: '🔁', label: '総レップ', value: `${a.totalReps.toLocaleString()}`, unit: '回', color: '#ff00ff' },
+      { icon: '⭐', label: '累計EXP', value: `${a.totalExp.toLocaleString()}`, unit: '', color: '#ffea00' },
+      { icon: '📈', label: '総合Lv', value: `${a.totalLevel}`, unit: '', color: '#00bfff' },
+    ];
+
+    const subHeading = (icon: string, text: string) => (
+      <h3 style={{ fontSize: '1rem', margin: '0 0 0.8rem 0', color: 'var(--text-accent)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>{icon}</span> {text}
+      </h3>
+    );
+
+    return (
+      <div style={{ marginBottom: '2rem' }}>
+        <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+          📊 トレーニング分析
+        </h3>
+
+        {/* サマリー統計タイル */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1.2rem' }}>
+          {statTiles.map(t => (
+            <div key={t.label} style={{
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '10px',
+              padding: '0.7rem 0.4rem',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '1.1rem', lineHeight: 1 }}>{t.icon}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: '4px 0 2px' }}>{t.label}</div>
+              <div style={{ fontWeight: 'bold', color: t.color, textShadow: `0 0 8px ${t.color}66` }}>
+                <span style={{ fontSize: '1.25rem' }}>{t.value}</span>
+                {t.unit && <span style={{ fontSize: '0.65rem', marginLeft: '2px' }}>{t.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 総挙上重量ヒーローカード */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255,0,127,0.12), rgba(255,140,0,0.12))',
+          border: '1px solid rgba(255,140,0,0.4)',
+          borderRadius: '12px',
+          padding: '1.2rem',
+          marginBottom: '1.2rem',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>🏋️ これまでの総挙上重量</div>
+          <div style={{ fontSize: '2.2rem', fontWeight: 'bold', color: '#ff8c00', textShadow: '0 0 15px rgba(255,140,0,0.5)', lineHeight: 1.1 }}>
+            {Math.round(a.totalVolume).toLocaleString()}<span style={{ fontSize: '1rem', marginLeft: '4px' }}>kg</span>
+          </div>
+          <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>
+            {formatVolumeComparison(a.totalVolume)}
+          </div>
+        </div>
+
+        {/* 部位バランス レーダーチャート */}
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.2rem' }}>
+          {subHeading('🕸️', '部位バランス')}
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '-0.5rem 0 0.8rem' }}>
+            まんべんなく鍛えて五角形を大きくしよう！
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: '100%' }}>
+              {/* グリッド（同心五角形） */}
+              {ringLevels.map(frac => (
+                <polygon key={frac} points={ringPoints(frac)} fill="none" stroke="rgba(0,255,255,0.15)" strokeWidth={1} />
+              ))}
+              {/* 軸線 */}
+              {groupsInOrder.map((_, i) => {
+                const [x, y] = pointAt(i, R);
+                return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(0,255,255,0.15)" strokeWidth={1} />;
+              })}
+              {/* データポリゴン */}
+              <polygon points={dataPoints} fill="rgba(255,0,255,0.25)" stroke="#ff00ff" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px rgba(255,0,255,0.6))' }} />
+              {/* 頂点マーカー */}
+              {groupsInOrder.map((g, i) => {
+                const [x, y] = pointAt(i, R * (a.groupScore[g.id] / a.groupMax));
+                return <circle key={g.id} cx={x} cy={y} r={3} fill="#00ffff" />;
+              })}
+              {/* ラベル */}
+              {groupsInOrder.map((g, i) => {
+                const [x, y] = pointAt(i, R + 20);
+                return (
+                  <text key={g.id} x={x} y={y} fill="var(--text-secondary)" fontSize="10" textAnchor="middle" dominantBaseline="middle">
+                    {GROUP_SHORT[g.id]}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+
+        {/* よく使う種目 TOP5 */}
+        {a.topExercises.length > 0 && (
+          <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.2rem' }}>
+            {subHeading('🏆', 'よく鍛えた種目 TOP5')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+              {a.topExercises.map((ex, i) => {
+                const pct = (ex.sets / a.topExerciseMax) * 100;
+                const medals = ['🥇', '🥈', '🥉'];
+                return (
+                  <div key={ex.name}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '3px' }}>
+                      <span>{medals[i] || `${i + 1}.`} {ex.name}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{ex.sets}set / {ex.count}回</span>
+                    </div>
+                    <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.08)', borderRadius: '5px', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #00ffff, #ff00ff)', borderRadius: '5px', transition: 'width 0.6s ease-out' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 曜日別トレーニング傾向 */}
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem' }}>
+          {subHeading('📆', '曜日別トレーニング')}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '4px', height: '90px' }}>
+            {a.weekdayCount.map((c, i) => {
+              const pct = (c / a.weekdayMax) * 100;
+              const isFav = i === a.favWeekdayIdx && c > 0;
+              return (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', width: '100%' }}>
+                    <div
+                      data-tooltip-id="calendar-tooltip"
+                      data-tooltip-content={`${WEEKDAY_LABELS[i]}曜日: ${c}回`}
+                      style={{
+                        width: '100%',
+                        height: `${Math.max(pct, c > 0 ? 8 : 2)}%`,
+                        background: isFav
+                          ? 'linear-gradient(180deg, #ffea00, #ff8c00)'
+                          : 'linear-gradient(180deg, #00ffff, #0088ff)',
+                        borderRadius: '4px 4px 0 0',
+                        opacity: c > 0 ? 1 : 0.25,
+                        transition: 'height 0.6s ease-out',
+                        boxShadow: isFav ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: isFav ? '#ffea00' : 'var(--text-secondary)', marginTop: '4px', fontWeight: isFav ? 'bold' : 'normal' }}>
+                    {WEEKDAY_LABELS[i]}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {a.favWeekdayIdx >= 0 && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.8rem' }}>
+              あなたが一番燃える曜日は <span style={{ color: '#ffea00', fontWeight: 'bold' }}>{WEEKDAY_LABELS[a.favWeekdayIdx]}曜日</span>！
+            </p>
+          )}
+        </div>
+        <Tooltip id="calendar-tooltip" />
+      </div>
+    );
+  };
+
   return (
     <>
     <div className="main-content">
@@ -1214,7 +1505,10 @@ function App() {
       {activeTab === 'logs' && (
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 筋トレ履歴</h2>
-          
+
+          {/* 分析ダッシュボード（記録がある場合のみ） */}
+          {trainingLogs.length > 0 && renderDashboard()}
+
           {/* 草カレンダー */}
           {renderCalendar()}
 
