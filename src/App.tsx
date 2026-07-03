@@ -56,7 +56,7 @@ interface TrainingLog {
   gainedExp: number;
 }
 
-type TabType = 'characters' | 'record' | 'logs' | 'achievements';
+type TabType = 'characters' | 'record' | 'logs' | 'achievements' | 'encyclopedia';
 
 interface Achievement {
   id: string;
@@ -385,6 +385,13 @@ function getEvolutionPhase(level: number): 1 | 2 | 3 {
   if (level < 10) return 2;
   return 3;
 }
+
+// 各進化フェーズの表示情報（図鑑用）。unlockLevel はそのフェーズに到達する最低レベル。
+const PHASE_INFO: Record<1 | 2 | 3, { label: string; stage: string; unlockLevel: number }> = {
+  1: { label: '第1形態', stage: '幼年期', unlockLevel: 1 },
+  2: { label: '第2形態', stage: '成長期', unlockLevel: 5 },
+  3: { label: '第3形態', stage: '完全体', unlockLevel: 10 },
+};
 
 // 分岐進化の型ごとの表示情報（ラベル・絵文字・オーラ色・フレーバー）
 const BRANCH_INFO: Record<EvolutionBranch, { label: string; emoji: string; color: string; description: string }> = {
@@ -1345,6 +1352,135 @@ function App() {
     );
   };
 
+  // キャラクター図鑑の描画：全筋肉モンスターの進化系統（第1〜第3形態）を一覧表示する。
+  // 未発見の形態はシルエット表示。発見状況は現在のレベルから導出する（このアプリではレベルが
+  // 下がることはないため、現在レベル＝到達済みの最大フェーズとみなせる）。
+  const renderEncyclopedia = () => {
+    const allMuscles = MUSCLE_GROUPS.flatMap(g => g.muscles);
+    const totalForms = allMuscles.length * 3;
+    const discoveredForms = allMuscles.reduce((acc, m) => {
+      const lv = stats[m].level;
+      return acc + 1 + (lv >= 5 ? 1 : 0) + (lv >= 10 ? 1 : 0);
+    }, 0);
+    const completionPct = Math.round((discoveredForms / totalForms) * 100);
+    const isComplete = discoveredForms === totalForms;
+
+    return (
+      <div className="glass-panel" style={{ marginTop: '0' }}>
+        <h2 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>📚 モンスター図鑑</h2>
+        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.2rem' }}>
+          筋肉を育てて全ての進化形態をコンプリートしよう！
+        </p>
+
+        {/* コンプリート進捗 */}
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>ずかん達成度</span>
+            <span style={{ fontWeight: 'bold', color: isComplete ? '#ffea00' : '#00ffff', textShadow: isComplete ? '0 0 10px rgba(255,234,0,0.6)' : 'none' }}>
+              <span style={{ fontSize: '1.5rem' }}>{discoveredForms}</span>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}> / {totalForms} 種</span>
+            </span>
+          </div>
+          <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{
+              width: `${completionPct}%`, height: '100%', borderRadius: '6px',
+              background: isComplete ? 'linear-gradient(90deg, #ffea00, #ff8c00)' : 'linear-gradient(90deg, #00ffff, #ff00ff)',
+              transition: 'width 0.6s ease-out',
+              boxShadow: isComplete ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+            }} />
+          </div>
+          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: isComplete ? '#ffea00' : 'var(--text-secondary)', fontWeight: isComplete ? 'bold' : 'normal' }}>
+            {isComplete ? '🎉 図鑑コンプリート！全ての筋肉が完全体だ！' : `達成率 ${completionPct}%`}
+          </p>
+        </div>
+
+        {/* 部位グループごとの進化系統リスト */}
+        {MUSCLE_GROUPS.map(group => (
+          <div key={group.id} style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.4rem' }}>
+              {group.title}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {group.muscles.map(muscle => {
+                const mStats = stats[muscle];
+                const level = mStats.level;
+                const branch = resolveBranch(mStats, muscle, trainingLogs);
+                const discoveredCount = 1 + (level >= 5 ? 1 : 0) + (level >= 10 ? 1 : 0);
+
+                return (
+                  <div
+                    key={muscle}
+                    className="glass-panel"
+                    onClick={() => setSelectedMuscleInfo(muscle)}
+                    style={{ padding: '0.8rem', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>{MUSCLE_NAMES[muscle]}</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--border-highlight)' }}>Lv.{level}</span>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', color: discoveredCount === 3 ? '#ffea00' : 'var(--text-secondary)', fontWeight: discoveredCount === 3 ? 'bold' : 'normal' }}>
+                        {discoveredCount === 3 ? '★ ' : ''}{discoveredCount}/3
+                      </span>
+                    </div>
+
+                    {/* 進化系統（第1→第2→第3形態） */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      {([1, 2, 3] as const).map((phase, idx) => {
+                        const info = PHASE_INFO[phase];
+                        const discovered = level >= info.unlockLevel;
+                        const formBranch = phase === 3 && discovered ? branch : undefined;
+                        const branchInfo = formBranch ? BRANCH_INFO[formBranch] : null;
+
+                        return (
+                          <div key={phase} style={{ display: 'contents' }}>
+                            {idx > 0 && (
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', opacity: 0.5, padding: '0 2px' }}>▶</span>
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                              <div style={{ height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
+                                <img
+                                  src={getSpriteSrc(muscle, phase, formBranch)}
+                                  onError={e => handleSpriteError(e, muscle)}
+                                  alt={discovered ? `${MUSCLE_NAMES[muscle]} ${info.label}` : '未発見'}
+                                  style={{
+                                    maxHeight: '100%', maxWidth: '100%', objectFit: 'contain',
+                                    filter: discovered
+                                      ? (branchInfo ? `drop-shadow(0 0 5px ${branchInfo.color})` : 'none')
+                                      : 'brightness(0) drop-shadow(0 0 1px rgba(255,255,255,0.45))',
+                                    opacity: discovered ? 1 : 0.55,
+                                  }}
+                                />
+                                {!discovered && (
+                                  <span style={{ position: 'absolute', fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>？</span>
+                                )}
+                                {branchInfo && (
+                                  <span style={{ position: 'absolute', bottom: '-2px', right: '4px', fontSize: '0.8rem', filter: `drop-shadow(0 0 2px ${branchInfo.color})` }}>
+                                    {branchInfo.emoji}
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '0.6rem', color: discovered ? 'var(--text-primary)' : 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                {info.label}
+                              </span>
+                              <span style={{ fontSize: '0.55rem', color: branchInfo ? branchInfo.color : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                {discovered ? (branchInfo ? branchInfo.label : info.stage) : `Lv.${info.unlockLevel}で解放`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <>
     <div className="main-content">
@@ -1782,6 +1918,9 @@ function App() {
         </div>
       )}
 
+      {/* --- タブコンテンツ：図鑑 --- */}
+      {activeTab === 'encyclopedia' && renderEncyclopedia()}
+
       {/* Result Modal Overlay */}
       {recordResult && (
         <div className="modal-overlay" style={{ zIndex: 1001 }}>
@@ -1988,6 +2127,10 @@ function App() {
       <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>
         <span className="tab-icon">🏆</span>
         <span className="tab-label">実績</span>
+      </button>
+      <button className={`tab-button ${activeTab === 'encyclopedia' ? 'active' : ''}`} onClick={() => setActiveTab('encyclopedia')}>
+        <span className="tab-icon">📚</span>
+        <span className="tab-label">図鑑</span>
       </button>
     </div>
     </>
