@@ -457,7 +457,7 @@ function App() {
     const newStats = { ...stats };
     const droppedMuscles: string[] = [];
 
-    (Object.keys(newStats) as MuscleType[]).map(muscle => {
+    (Object.keys(newStats) as MuscleType[]).forEach(muscle => {
       const mStat = newStats[muscle];
       if (mStat.lastTrainedAt && (now - mStat.lastTrainedAt > DETRAIN_THRESHOLD_MS)) {
         if (mStat.exp > 0) {
@@ -473,6 +473,7 @@ function App() {
       setStats(newStats);
       setDetrainAlert(droppedMuscles);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
