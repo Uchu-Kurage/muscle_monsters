@@ -428,6 +428,13 @@ function App() {
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
 
+  // 時間経過に応じて表示を更新するためのティック（プロテインボタンの出現判定など）
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // ヘルパー: 指定した筋肉が「休息中」かどうかを判定する
   // 今日トレーニングした筋肉は、その日のうちはペナルティ回避のため休息中とはみなさない
   const checkIsRecovering = (muscle: MuscleType, currentStats: AppState) => {
@@ -860,6 +867,23 @@ function App() {
     }
   };
 
+  // プロテインボーナスを適用できる部位が1つでもあるか（handleDrinkProtein と同じ条件）
+  const hasProteinTarget = useMemo(() => {
+    const fortyMinutesMs = 40 * 60 * 1000;
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+    return (Object.keys(stats) as MuscleType[]).some(muscle => {
+      const current = stats[muscle];
+      if ((current.lastTrainedAt || 0) === 0) return false;
+
+      const timeSinceLastTraining = now - (current.lastTrainedAt || 0);
+      const currentMultiplier = current.proteinBonusMultiplier || (current.hasProteinBonus ? 1.3 : 1.0);
+
+      if (timeSinceLastTraining <= fortyMinutesMs) return currentMultiplier < 1.5;
+      if (timeSinceLastTraining <= twoHoursMs) return currentMultiplier < 1.3;
+      return false;
+    });
+  }, [stats, now]);
+
   const recommendedExercises = useMemo(() => {
     const safeExercises = EXERCISES.filter(ex => {
       return ex.targets.every(target => !checkIsRecovering(target.muscle, stats));
@@ -905,30 +929,32 @@ function App() {
             </div>
           )}
           
-          {/* プロテインボタン */}
-          <div style={{ marginBottom: '2rem', width: '100%', maxWidth: '300px' }}>
-            <button 
-              onClick={handleDrinkProtein}
-              style={{ 
-                width: '100%', 
-                padding: '12px', 
-                backgroundColor: 'rgba(0, 255, 255, 0.1)', 
-                borderColor: '#00ffff', 
-                color: '#00ffff',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '1rem',
-                fontWeight: 'bold'
-              }}
-            >
-              🥤 プロテインを飲む
-            </button>
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
-              筋トレ後2時間以内にプロテインを飲むことで次回筋トレ時にEXPボーナスが付与されます
-            </p>
-          </div>
+          {/* プロテインボタン（適用可能な部位があるときだけ表示） */}
+          {hasProteinTarget && (
+            <div style={{ marginBottom: '2rem', width: '100%', maxWidth: '300px' }}>
+              <button
+                onClick={handleDrinkProtein}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                  borderColor: '#00ffff',
+                  color: '#00ffff',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '1rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                🥤 プロテインを飲む
+              </button>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
+                筋トレ後2時間以内にプロテインを飲むことで次回筋トレ時にEXPボーナスが付与されます
+              </p>
+            </div>
+          )}
 
           <div style={{ width: '100%' }}>
           {MUSCLE_GROUPS.map(group => (
