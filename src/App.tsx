@@ -408,6 +408,23 @@ const BRANCH_INFO: Record<EvolutionBranch, { label: string; emoji: string; color
   },
 };
 
+// スプライト画像パスを一元管理する。第3形態かつ分岐が確定している場合は型別画像
+// （/assets/{muscle}_3_{branch}.png）を、それ以外は従来の /assets/{muscle}_{phase}.png を返す。
+// 型別画像は現状「仮画像（第3形態画像のコピー）」で、同名ファイルを差し替えれば反映される。
+function getSpriteSrc(muscle: MuscleType, phase: 1 | 2 | 3, branch?: EvolutionBranch): string {
+  if (phase === 3 && branch) return `/assets/${muscle}_3_${branch}.png`;
+  return `/assets/${muscle}_${phase}.png`;
+}
+
+// 型別画像が読み込めない（未配置など）場合に、必ず存在する第3形態画像へ退避する。
+// 一度退避したら再度 error を起こさないよう dataset でガードし無限ループを防ぐ。
+function handleSpriteError(e: React.SyntheticEvent<HTMLImageElement>, muscle: MuscleType) {
+  const img = e.currentTarget;
+  if (img.dataset.fallback === 'done') return;
+  img.dataset.fallback = 'done';
+  img.src = `/assets/${muscle}_3.png`;
+}
+
 function formatDate(ms: number): string {
   const date = new Date(ms);
   const m = date.getMonth() + 1;
@@ -543,7 +560,8 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
   return (
     <div className="result-row" style={{ display: 'flex', alignItems: 'center' }}>
       <img
-        src={`/assets/${detail.muscle}_${phase}.png`}
+        src={getSpriteSrc(detail.muscle, phase, detail.evolutionBranch)}
+        onError={e => handleSpriteError(e, detail.muscle)}
         alt={MUSCLE_NAMES[detail.muscle]}
         style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px', filter: branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color})` : 'none' }}
       />
@@ -1446,7 +1464,8 @@ function App() {
                       
                       <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
                         <img
-                          src={`/assets/${muscle}_${phase}.png`}
+                          src={getSpriteSrc(muscle, phase, branch)}
+                          onError={e => handleSpriteError(e, muscle)}
                           alt={muscle}
                           className={`monster-image`}
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : (branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color}) drop-shadow(0 0 3px ${branchInfo.color})` : 'none') }}
@@ -1584,13 +1603,15 @@ function App() {
                   {selectedExercise.targets.map(target => {
                     const mStats = stats[target.muscle];
                     const phase = getEvolutionPhase(mStats.level);
+                    const targetBranch = resolveBranch(mStats, target.muscle, trainingLogs);
                     const isRecovering = checkIsRecovering(target.muscle, stats);
 
                     return (
                       <div key={target.muscle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                        <img 
-                          src={`/assets/${target.muscle}_${phase}.png`} 
-                          alt={target.muscle} 
+                        <img
+                          src={getSpriteSrc(target.muscle, phase, targetBranch)}
+                          onError={e => handleSpriteError(e, target.muscle)}
+                          alt={target.muscle}
                           style={{ height: '40px', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
                         {isRecovering && (
@@ -1821,7 +1842,8 @@ function App() {
               )}
             </p>
             <img
-              src={`/assets/${alert.muscle}_${alert.phase}.png`}
+              src={getSpriteSrc(alert.muscle, alert.phase as 1 | 2 | 3, alert.branch)}
+              onError={e => handleSpriteError(e, alert.muscle)}
               alt="Evolved Muscle"
               className="monster-image"
               style={{
@@ -1863,7 +1885,8 @@ function App() {
               return (
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                   <img
-                    src={`/assets/${selectedMuscleInfo}_${getEvolutionPhase(stats[selectedMuscleInfo].level)}.png`}
+                    src={getSpriteSrc(selectedMuscleInfo, getEvolutionPhase(stats[selectedMuscleInfo].level), detailBranch)}
+                    onError={e => handleSpriteError(e, selectedMuscleInfo)}
                     alt={MUSCLE_NAMES[selectedMuscleInfo]}
                     style={{ height: '120px', objectFit: 'contain', filter: detailBranchInfo ? `drop-shadow(0 0 10px ${detailBranchInfo.color}) drop-shadow(0 0 5px ${detailBranchInfo.color})` : 'none' }}
                   />

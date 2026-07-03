@@ -100,8 +100,17 @@ exercises use the user's body weight instead of a weight input.
   (`Math.max(1, floor(base * ratio))`).
 - `getEvolutionPhase(level)`: 1 (Lv <5), 2 (Lv 5–9), 3 (Lv ≥10). A phase
   increase triggers the evolution modal.
-- Sprites are `/assets/{muscle}_{phase}.png` (e.g. `chest_2.png`). Any new
-  muscle or phase must have matching PNGs in `public/assets/`.
+- **Branching evolution**: on reaching phase 3, a muscle branches into a "型"
+  (`EvolutionBranch`: `power` / `endurance` / `balanced`) decided from training
+  tendency (`computeBranch`, weighted average reps) and locked into
+  `MuscleStats.evolutionBranch`. Legacy saves fall back to on-the-fly compute via
+  `resolveBranch`.
+- Sprites are `/assets/{muscle}_{phase}.png` (e.g. `chest_2.png`). Phase-3 branch
+  forms use `/assets/{muscle}_3_{branch}.png` (e.g. `chest_3_power.png`); all
+  sprite `src`s go through the `getSpriteSrc` helper, which falls back to
+  `{muscle}_3.png` on load error (`handleSpriteError`). Any new muscle or phase
+  must have matching PNGs in `public/assets/`. See `public/assets/BRANCH_SPRITES.md`
+  for the branch-sprite naming/replacement convention.
 
 ### Bonuses & penalties (in `handleRecord`)
 
