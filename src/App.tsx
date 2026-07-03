@@ -1292,7 +1292,7 @@ function App() {
                       <h3
                         data-tooltip-id="calendar-tooltip"
                         data-tooltip-content={isTrainedToday ? '本日トレーニング済み！' : undefined}
-                        style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}
+                        style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}
                       >
                         {MUSCLE_NAMES[muscle]}
                       </h3>
