@@ -9,12 +9,16 @@ type MuscleType =
   | 'abs' | 'obliques' | 'iliopsoas' | 'transversus_abdominis'
   | 'trapezius' | 'erector_spinae' | 'rhomboids';
 
+// 第3形態（Lv≥10）到達時に、トレーニング傾向で分岐する「型」
+type EvolutionBranch = 'power' | 'endurance' | 'balanced';
+
 interface MuscleStats {
   level: number;
   exp: number;
   lastTrainedAt?: number;
   hasProteinBonus?: boolean;
   proteinBonusMultiplier?: number;
+  evolutionBranch?: EvolutionBranch; // 第3形態到達時に一度だけ確定する分岐進化の型
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -38,6 +42,7 @@ interface RecordResultDetail {
   isOverworked: boolean;
   isProteinBonus: boolean;
   evolutionPhase?: number;
+  evolutionBranch?: EvolutionBranch; // 第3形態への分岐進化時のみ設定
 }
 
 interface TrainingLog {
@@ -381,6 +386,28 @@ function getEvolutionPhase(level: number): 1 | 2 | 3 {
   return 3;
 }
 
+// 分岐進化の型ごとの表示情報（ラベル・絵文字・オーラ色・フレーバー）
+const BRANCH_INFO: Record<EvolutionBranch, { label: string; emoji: string; color: string; description: string }> = {
+  power: {
+    label: 'パワー型',
+    emoji: '⚔️',
+    color: '#ff4d4d',
+    description: '低レップ・高重量で鍛え上げた「剛」の進化。爆発的なパワーを宿す。',
+  },
+  endurance: {
+    label: '持久型',
+    emoji: '🌀',
+    color: '#00e5ff',
+    description: '高レップで鍛え抜いた「粘り」の進化。尽きぬスタミナを宿す。',
+  },
+  balanced: {
+    label: 'バランス型',
+    emoji: '⭐',
+    color: '#ffd23f',
+    description: 'バランス良く鍛え上げた「王道」の進化。あらゆる力を高水準で備える。',
+  },
+};
+
 function formatDate(ms: number): string {
   const date = new Date(ms);
   const m = date.getMonth() + 1;
@@ -394,6 +421,44 @@ function formatDate(ms: number): string {
 const EXERCISE_BY_NAME: Record<string, ExerciseDef> = Object.fromEntries(
   EXERCISES.map(ex => [ex.name, ex])
 );
+
+// トレーニング傾向（セット数で重み付けした平均レップ数）から分岐進化の型を判定する。
+// extra は今回記録したセット（まだ logs に含まれていない分）を反映するための任意引数。
+function computeBranch(
+  muscle: MuscleType,
+  logs: TrainingLog[],
+  extra?: { reps: number; sets: number }
+): EvolutionBranch {
+  let repWeighted = 0;
+  let setSum = 0;
+  for (const log of logs) {
+    const def = EXERCISE_BY_NAME[log.exerciseName];
+    if (def && def.targets.some(t => t.muscle === muscle)) {
+      repWeighted += log.reps * log.sets;
+      setSum += log.sets;
+    }
+  }
+  if (extra && extra.sets > 0) {
+    repWeighted += extra.reps * extra.sets;
+    setSum += extra.sets;
+  }
+  if (setSum === 0) return 'balanced'; // データ不足はバランス型
+  const avgReps = repWeighted / setSum;
+  if (avgReps <= 7) return 'power';
+  if (avgReps >= 13) return 'endurance';
+  return 'balanced';
+}
+
+// 表示用: 第3形態なら保存済みの型を優先し、無ければ履歴から算出する（旧セーブ互換）。
+// 第3形態未満は分岐なし（undefined）。
+function resolveBranch(
+  mStats: MuscleStats,
+  muscle: MuscleType,
+  logs: TrainingLog[]
+): EvolutionBranch | undefined {
+  if (getEvolutionPhase(mStats.level) < 3) return undefined;
+  return mStats.evolutionBranch ?? computeBranch(muscle, logs);
+}
 
 // 各筋肉が属する部位グループのID（バランス集計用）
 const MUSCLE_TO_GROUP: Record<MuscleType, string> = (() => {
@@ -473,17 +538,19 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
   const required = getRequiredExp(currentLevel);
   const percent = Math.min(100, (currentExp / required) * 100);
   const phase = getEvolutionPhase(currentLevel);
+  const branchInfo = detail.evolutionBranch ? BRANCH_INFO[detail.evolutionBranch] : null;
 
   return (
     <div className="result-row" style={{ display: 'flex', alignItems: 'center' }}>
-      <img 
-        src={`/assets/${detail.muscle}_${phase}.png`} 
-        alt={MUSCLE_NAMES[detail.muscle]} 
-        style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px' }} 
+      <img
+        src={`/assets/${detail.muscle}_${phase}.png`}
+        alt={MUSCLE_NAMES[detail.muscle]}
+        style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px', filter: branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color})` : 'none' }}
       />
       <div style={{ flex: 1 }}>
         <div className="result-muscle-name">
           {MUSCLE_NAMES[detail.muscle]}
+          {branchInfo && <span style={{ color: branchInfo.color, marginLeft: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>{branchInfo.emoji}{branchInfo.label}</span>}
           <span className="result-exp-text">
             Lv.{currentLevel} <span style={{ fontWeight: 'bold', color: '#39ff14' }}>(+{detail.gainedExp} EXP)</span>
             {detail.isOverworked && <span style={{ color: 'orange', marginLeft: '4px', fontSize: '0.8rem' }}>(疲労半減)</span>}
@@ -540,7 +607,7 @@ function App() {
   const [reps, setReps] = useState<number | ''>('');
   const [sets, setSets] = useState<number | ''>('');
 
-  const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number }[]>([]);
+  const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number, branch?: EvolutionBranch }[]>([]);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
@@ -652,12 +719,13 @@ function App() {
     }
 
     const details: RecordResultDetail[] = [];
-    const newEvolutions: { muscle: MuscleType, phase: number }[] = [];
+    const newEvolutions: { muscle: MuscleType, phase: number, branch?: EvolutionBranch }[] = [];
     const newOverworkedMuscles: MuscleType[] = [];
 
-    setStats(prev => {
-      const nextStats = { ...prev };
-      
+    // レベルアップ・進化・実績判定はセット記録の副作用（details/newEvolutions 等）に依存するため、
+    // 遅延実行される setStats の更新関数の中ではなく、ここで同期的に計算してから state に反映する。
+    const nextStats: AppState = { ...stats };
+    {
       selectedExercise.targets.forEach(target => {
         const muscle = target.muscle;
         const current = nextStats[muscle];
@@ -666,8 +734,8 @@ function App() {
 
         // 超回復（ペナルティ）とプロテインボーナスの判定
         let expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
-        const isRecovering = checkIsRecovering(muscle, prev);
-        
+        const isRecovering = checkIsRecovering(muscle, stats);
+
         let isOverworked = false;
         let isProteinBonus = false;
 
@@ -697,6 +765,8 @@ function App() {
         }
 
         let evolutionPhase: number | undefined;
+        // 第3形態到達時に確定する分岐進化の型。既に確定済みなら維持する。
+        let branch: EvolutionBranch | undefined = current.evolutionBranch;
 
         if (didLevelUp) {
           const oldPhase = getEvolutionPhase(current.level);
@@ -704,7 +774,11 @@ function App() {
 
           if (newPhase > oldPhase) {
             evolutionPhase = newPhase;
-            newEvolutions.push({ muscle, phase: newPhase });
+            // 第3形態への進化のときだけ、トレーニング傾向から型を一度だけ確定
+            if (newPhase === 3 && !branch) {
+              branch = computeBranch(muscle, trainingLogs, { reps: r, sets: s });
+            }
+            newEvolutions.push({ muscle, phase: newPhase, branch: newPhase === 3 ? branch : undefined });
           }
         }
 
@@ -717,38 +791,29 @@ function App() {
           gainedExp: expToAdd,
           isOverworked,
           isProteinBonus,
-          evolutionPhase
+          evolutionPhase,
+          evolutionBranch: evolutionPhase === 3 ? branch : undefined
         });
 
         nextStats[muscle] = {
+          ...current,
           level: newLevel,
           exp: newExp,
           lastTrainedAt: Date.now(),
           hasProteinBonus: false, // プロテイン効果を消費
-          proteinBonusMultiplier: undefined
+          proteinBonusMultiplier: undefined,
+          evolutionBranch: branch
         };
       });
-      return nextStats;
-    });
-    
+    }
+    setStats(nextStats);
+
     if (newOverworkedMuscles.length > 0) {
       setOverworkAlerts(newOverworkedMuscles);
     }
 
-    // We need nextStats reference outside for achievement check. 
-    // Since setStats is async, we simulate it here for check.
-    const nextStatsToUse = { ...stats };
-    selectedExercise.targets.forEach(target => {
-       const muscle = target.muscle;
-       const detail = details.find(d => d.muscle === muscle);
-       if(detail) {
-         nextStatsToUse[muscle] = {
-            level: detail.newLevel,
-            exp: detail.newExp,
-            lastTrainedAt: Date.now()
-         };
-       }
-    });
+    // 実績判定は反映後の nextStats を使う
+    const nextStatsToUse = nextStats;
 
     setRecordResult({ details, isBestPump });
 
@@ -1339,6 +1404,8 @@ function App() {
                   const progress = (mStats.exp / reqExp) * 100;
                   const isBestPump = bestPumpAlert === muscle;
                   const phase = getEvolutionPhase(mStats.level);
+                  const branch = resolveBranch(mStats, muscle, trainingLogs);
+                  const branchInfo = branch ? BRANCH_INFO[branch] : null;
 
                   const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
                   const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
@@ -1378,12 +1445,21 @@ function App() {
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
                       <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
-                        <img 
-                          src={`/assets/${muscle}_${phase}.png`} 
-                          alt={muscle} 
+                        <img
+                          src={`/assets/${muscle}_${phase}.png`}
+                          alt={muscle}
                           className={`monster-image`}
-                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
+                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : (branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color}) drop-shadow(0 0 3px ${branchInfo.color})` : 'none') }}
                         />
+                        {branchInfo && (
+                          <div
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content={`分岐進化: ${branchInfo.label}`}
+                            style={{ position: 'absolute', bottom: '-4px', right: '2px', fontSize: '0.85rem', lineHeight: 1, filter: `drop-shadow(0 0 2px ${branchInfo.color})`, pointerEvents: 'auto' }}
+                          >
+                            {branchInfo.emoji}
+                          </div>
+                        )}
                         {isRecovering && (
                           <div
                             data-tooltip-id="calendar-tooltip"
@@ -1728,26 +1804,44 @@ function App() {
       )}
 
       {/* Evolution Modal Overlay */}
-      {(!recordResult && !achievementAlert && evolutionAlerts.length > 0) && (
+      {(!recordResult && !achievementAlert && evolutionAlerts.length > 0) && (() => {
+        const alert = evolutionAlerts[0];
+        const branchInfo = alert.phase === 3 && alert.branch ? BRANCH_INFO[alert.branch] : null;
+        return (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
-            <h1 style={{ color: '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>進化！！</h1>
-            <p style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
-              おめでとう！<br/>{MUSCLE_NAMES[evolutionAlerts[0].muscle]} は 第{evolutionAlerts[0].phase}形態 に進化した！
+            <h1 style={{ color: branchInfo ? branchInfo.color : '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>
+              {branchInfo ? '分岐進化！！' : '進化！！'}
+            </h1>
+            <p style={{ fontSize: '1.5rem', marginBottom: branchInfo ? '1rem' : '2rem' }}>
+              {branchInfo ? (
+                <>おめでとう！<br/>{MUSCLE_NAMES[alert.muscle]} は<br/>{branchInfo.emoji} <span style={{ color: branchInfo.color, fontWeight: 'bold' }}>{branchInfo.label}</span> に分岐進化した！</>
+              ) : (
+                <>おめでとう！<br/>{MUSCLE_NAMES[alert.muscle]} は 第{alert.phase}形態 に進化した！</>
+              )}
             </p>
-            <img 
-              src={`/assets/${evolutionAlerts[0].muscle}_${evolutionAlerts[0].phase}.png`} 
-              alt="Evolved Muscle" 
+            <img
+              src={`/assets/${alert.muscle}_${alert.phase}.png`}
+              alt="Evolved Muscle"
               className="monster-image"
-              style={{ maxHeight: '250px', maxWidth: '100%', objectFit: 'contain', marginBottom: '2rem' }}
+              style={{
+                maxHeight: '250px', maxWidth: '100%', objectFit: 'contain', marginBottom: branchInfo ? '1rem' : '2rem',
+                filter: branchInfo ? `drop-shadow(0 0 18px ${branchInfo.color}) drop-shadow(0 0 8px ${branchInfo.color})` : 'none'
+              }}
             />
-            <br />
+            {branchInfo && (
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: 1.5 }}>
+                {branchInfo.description}
+              </p>
+            )}
+            {!branchInfo && <br />}
             <button onClick={closeEvolutionAlert} style={{ width: '100%', maxWidth: '200px' }}>
               {evolutionAlerts.length > 1 ? '次へ' : '閉じる'}
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Muscle Detail Modal Overlay */}
       {selectedMuscleInfo && (
@@ -1763,13 +1857,33 @@ function App() {
               </div>
             </div>
 
-            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <img 
-                src={`/assets/${selectedMuscleInfo}_${getEvolutionPhase(stats[selectedMuscleInfo].level)}.png`} 
-                alt={MUSCLE_NAMES[selectedMuscleInfo]} 
-                style={{ height: '120px', objectFit: 'contain' }}
-              />
-            </div>
+            {(() => {
+              const detailBranch = resolveBranch(stats[selectedMuscleInfo], selectedMuscleInfo, trainingLogs);
+              const detailBranchInfo = detailBranch ? BRANCH_INFO[detailBranch] : null;
+              return (
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <img
+                    src={`/assets/${selectedMuscleInfo}_${getEvolutionPhase(stats[selectedMuscleInfo].level)}.png`}
+                    alt={MUSCLE_NAMES[selectedMuscleInfo]}
+                    style={{ height: '120px', objectFit: 'contain', filter: detailBranchInfo ? `drop-shadow(0 0 10px ${detailBranchInfo.color}) drop-shadow(0 0 5px ${detailBranchInfo.color})` : 'none' }}
+                  />
+                  {detailBranchInfo && (
+                    <div style={{ marginTop: '0.6rem' }}>
+                      <span style={{
+                        display: 'inline-block', padding: '3px 12px', borderRadius: '999px',
+                        fontSize: '0.85rem', fontWeight: 'bold', color: detailBranchInfo.color,
+                        border: `1px solid ${detailBranchInfo.color}`, background: 'rgba(0,0,0,0.25)'
+                      }}>
+                        {detailBranchInfo.emoji} {detailBranchInfo.label} に分岐進化
+                      </span>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0', lineHeight: 1.5 }}>
+                        {detailBranchInfo.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
