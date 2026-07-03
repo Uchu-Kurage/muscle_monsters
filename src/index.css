@@ -330,6 +330,13 @@ body {
   margin-left: 10px;
 }
 
+/* Reserve the space for the "LEVEL UP!" label up front so the row height
+   does not jump when a level-up actually happens. */
+.result-level-up-text.is-hidden {
+  visibility: hidden;
+  animation: none;
+}
+
 .result-bar-container {
   width: 100%;
   height: 16px;

@@ -489,7 +489,7 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
             {detail.isOverworked && <span style={{ color: 'orange', marginLeft: '4px', fontSize: '0.8rem' }}>(疲労半減)</span>}
             {detail.isProteinBonus && <span style={{ color: '#00ffff', marginLeft: '4px', fontSize: '0.8rem' }}>(🥤 x1.3)</span>}
           </span>
-          {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
+          <span className={`result-level-up-text ${didLevelUp ? '' : 'is-hidden'}`}>LEVEL UP!</span>
         </div>
         <div className="result-bar-container">
           <div 
