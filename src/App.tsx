@@ -219,6 +219,28 @@ const MUSCLE_NAMES: Record<MuscleType, string> = {
   rhomboids: '菱形筋',
 };
 
+const MUSCLE_READINGS: Record<MuscleType, string> = {
+  chest: 'だいきょうきん',
+  back: 'こうはいきん',
+  shoulder: 'さんかくきん',
+  biceps: 'じょうわんにとうきん',
+  triceps: 'じょうわんさんとうきん',
+  brachioradialis: 'わんとうこつきん',
+  forearm_flexors: 'ぜんわんくっきんぐん',
+  glutes: 'だいでんきん',
+  legs: 'だいたいしとうきん',
+  hamstrings: 'ハムストリングス',
+  gluteus_medius: 'ちゅうでんきん',
+  adductors: 'こかんせつないてんきんぐん',
+  abs: 'ふくちょくきん',
+  obliques: 'ふくしゃきん',
+  iliopsoas: 'ちょうようきん',
+  transversus_abdominis: 'ふくおうきん',
+  trapezius: 'そうぼうきん',
+  erector_spinae: 'せきちゅうきりつきん',
+  rhomboids: 'りょうけいきん',
+};
+
 interface MuscleDetail {
   description: string;
   effectiveExercises: string[];
@@ -1733,7 +1755,10 @@ function App() {
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedMuscleInfo]}</span>
+                  <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+                </div>
                 <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
               </div>
             </div>
