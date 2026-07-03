@@ -972,17 +972,12 @@ function App() {
                         </div>
                       )}
 
-                      <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <h3
+                        data-tooltip-id="calendar-tooltip"
+                        data-tooltip-content={isTrainedToday ? '本日トレーニング済み！' : undefined}
+                        style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}
+                      >
                         {MUSCLE_NAMES[muscle]}
-                        {isTrainedToday && (
-                          <span
-                            data-tooltip-id="calendar-tooltip"
-                            data-tooltip-content="本日トレーニング済み！"
-                            style={{ fontSize: '0.75rem', color: '#39ff14' }}
-                          >
-                            ✅
-                          </span>
-                        )}
                       </h3>
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
@@ -994,7 +989,11 @@ function App() {
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
                         {isRecovering && (
-                          <div style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(0,0,0,0.7)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                          <div
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content={`休息中：あと${Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000))}時間`}
+                            style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(0,0,0,0.7)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(255,255,255,0.2)' }}
+                          >
                             💤
                           </div>
                         )}
@@ -1025,19 +1024,6 @@ function App() {
                           <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #00ffff, #0088ff)', transition: 'width 0.5s ease-out' }} />
                         </div>
                       </div>
-
-                      {/* 休息ゲージ */}
-                      {isRecovering && (
-                        <div style={{ width: '100%', marginTop: '0.5rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'orange', marginBottom: '2px' }}>
-                            <span>休息中</span>
-                            <span>あと{Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000))}時間</span>
-                          </div>
-                          <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${(timeSinceLastTraining / requiredRecoveryMs) * 100}%`, height: '100%', background: 'orange', transition: 'width 0.5s ease-out' }} />
-                          </div>
-                        </div>
-                      )}
 
                     </div>
                   );
