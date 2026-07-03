@@ -962,7 +962,7 @@ function App() {
               <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                 {group.title}
               </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '1rem' }}>
                 {group.muscles.map(muscle => {
                   const mStats = stats[muscle];
                   const reqExp = getRequiredExp(mStats.level);
@@ -1007,7 +1007,7 @@ function App() {
                       </h3>
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
-                      <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
+                      <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
                         <img 
                           src={`/assets/${muscle}_${phase}.png`} 
                           alt={muscle} 
