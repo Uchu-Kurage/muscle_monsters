@@ -19,6 +19,15 @@ interface MuscleStats {
   hasProteinBonus?: boolean;
   proteinBonusMultiplier?: number;
   evolutionBranch?: EvolutionBranch; // 第3形態到達時に一度だけ確定する分岐進化の型
+  condition?: number;         // コンディション（調子）0-100。既定100。育成ミスで低下し次回EXPにペナルティ
+  conditionUpdatedAt?: number; // サボりによるコンディション減衰を最後に精算した時刻
+}
+
+// 全体で保持する連続トレーニング日数（ストリーク）
+interface StreakData {
+  current: number;  // 現在の連続日数
+  best: number;     // 最高記録
+  lastDate: string; // 最後にトレーニングした日（toDateString）
 }
 
 type AppState = Record<MuscleType, MuscleStats>;
@@ -41,6 +50,10 @@ interface RecordResultDetail {
   gainedExp: number;
   isOverworked: boolean;
   isProteinBonus: boolean;
+  isSuperComp: boolean;          // 超回復ピーク（適時トレ）ボーナスが適用されたか
+  isPoorCondition: boolean;      // コンディション低下によるEXPペナルティが適用されたか
+  conditionMultiplier: number;   // コンディションによる倍率（1.0=ペナルティなし）
+  conditionLabel?: string;       // ペナルティ時の調子ラベル（例: 疲労）
   evolutionPhase?: number;
   evolutionBranch?: EvolutionBranch; // 第3形態への分岐進化時のみ設定
 }
@@ -62,13 +75,29 @@ interface Achievement {
   id: string;
   name: string;
   description: string;
-  check: (stats: Record<MuscleType, MuscleStats>, logs: TrainingLog[]) => boolean;
+  check: (stats: Record<MuscleType, MuscleStats>, logs: TrainingLog[], streak: StreakData) => boolean;
 }
+
+// 連続トレーニング日数のマイルストーン。称号（実績）とバナー表示の両方で使う。
+// ストリークの報酬はEXPではなく、この称号の獲得（＝「継続」の meta 報酬）。
+const STREAK_TITLES: { days: number; id: string; title: string }[] = [
+  { days: 3, id: 'streak_3', title: '三日坊主返上' },
+  { days: 7, id: 'streak_7', title: '週間皆勤賞' },
+  { days: 14, id: 'streak_14', title: '継続は力なり' },
+  { days: 30, id: 'streak_30', title: '鉄の習慣' },
+];
 
 const ACHIEVEMENTS: Achievement[] = [
   { id: 'first_blood', name: '駆け出しトレーニー', description: '初めてトレーニングを記録する', check: (_, logs) => logs.length > 0 },
   { id: 'habit_3', name: '習慣化への第一歩', description: 'トレーニングを累計3日記録する', check: (_, logs) => new Set(logs.map(l => new Date(l.timestamp).toDateString())).size >= 3 },
   { id: 'habit_7', name: '鉄の意志', description: 'トレーニングを累計7日記録する', check: (_, logs) => new Set(logs.map(l => new Date(l.timestamp).toDateString())).size >= 7 },
+  // 連続日数（ストリーク）称号。best を見るので一度達成すれば途切れても解除されない。
+  ...STREAK_TITLES.map(m => ({
+    id: m.id,
+    name: m.title,
+    description: `${m.days}日連続でトレーニングする`,
+    check: (_s: AppState, _l: TrainingLog[], streak: StreakData) => streak.best >= m.days,
+  })),
   { id: 'chest_master', name: '大胸筋マスター', description: '大胸筋のレベルを10にする', check: (stats) => stats.chest.level >= 10 },
   { id: 'back_master', name: '広背筋マスター', description: '広背筋のレベルを10にする', check: (stats) => stats.back.level >= 10 },
   { id: 'legs_master', name: '大腿四頭筋マスター', description: '大腿四頭筋のレベルを10にする', check: (stats) => stats.legs.level >= 10 },
@@ -376,6 +405,62 @@ const MUSCLE_RECOVERY_HOURS: Record<MuscleType, number> = {
 
 const DETRAIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14日間
 
+// ===== コンディション（調子）システム =====
+// 「育成ミス」（過剰トレ・サボり）でコンディションが下がり、次回の獲得EXPにペナルティ倍率が
+// かかる。マイナスにはならず（レベルは絶対に下がらない）、適切なトレーニングで回復できる。
+const MAX_CONDITION = 100;
+const CONDITION_OVERWORK_PENALTY = 30;   // 過剰トレ（超回復前）1回あたりの低下量
+const CONDITION_TRAIN_RECOVERY = 25;     // 適切なトレーニング1回あたりの回復量
+const CONDITION_SABORI_GRACE_FACTOR = 2; // 回復時間×この倍率を過ぎたらサボり扱いで減衰開始
+const CONDITION_SABORI_DECAY_PER_DAY = 8; // サボり1日あたりのコンディション低下量
+
+// ===== 超回復ピーク（適時トレ）ボーナス =====
+// 回復完了後～サボり圏に入る前の「ちょうど良い」タイミングで鍛えると獲得EXPが増える。
+// 「EXPは部位への負荷と連動する」という思想に沿った、部位別・タイミング依存の報酬。
+// 時間軸: 早すぎ(超回復前)=過剰トレで半減 / ちょうど良い=超回復ピークで加算 / 遅すぎ=サボりで調子ダウン。
+const SUPERCOMP_BONUS = 1.2;
+
+// コンディションの段階。上から順に評価し、condition >= min の最初の段階を採用する。
+const CONDITION_TIERS = [
+  { min: 90, label: '絶好調', emoji: '😤', color: '#39ff14', multiplier: 1.0 },
+  { min: 65, label: '好調',   emoji: '💪', color: '#00e5ff', multiplier: 1.0 },
+  { min: 40, label: '普通',   emoji: '😐', color: '#ffd23f', multiplier: 1.0 },
+  { min: 20, label: '疲労',   emoji: '😓', color: '#ff9f1c', multiplier: 0.8 },
+  { min: 0,  label: '絶不調', emoji: '🤕', color: '#ff4d4d', multiplier: 0.6 },
+] as const;
+
+type ConditionTier = (typeof CONDITION_TIERS)[number];
+
+function getConditionTier(condition: number): ConditionTier {
+  const c = Math.max(0, Math.min(MAX_CONDITION, condition));
+  return CONDITION_TIERS.find(t => c >= t.min) ?? CONDITION_TIERS[CONDITION_TIERS.length - 1];
+}
+
+// ===== 連続トレーニング日数（ストリーク）システム =====
+// 毎日「何かしら」トレーニングを続けると伸び、1日でも空くと途切れる。部位を問わない
+// 「継続ログイン」の習慣化メカニクス。報酬はEXPではなく称号（STREAK_TITLES）で、
+// 部位EXPの「負荷連動」思想を汚さないように分離している。
+// 次に狙える連続日数の称号マイルストーンを返す（全て達成済みなら null）。
+function getNextStreakMilestone(streak: StreakData): { days: number; title: string } | null {
+  return STREAK_TITLES.find(m => streak.best < m.days) ?? null;
+}
+
+// 2つの日付文字列（toDateString）の差を日数で返す。to - from。
+function dayDiff(fromDateStr: string, toDateStr: string): number {
+  const from = new Date(fromDateStr);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(toDateStr);
+  to.setHours(0, 0, 0, 0);
+  return Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+// 表示用の実効ストリーク。今日か昨日に記録があれば継続中、2日以上空いていれば途切れて0。
+function getEffectiveStreak(data: StreakData, nowMs: number): number {
+  if (!data.lastDate) return 0;
+  const diff = dayDiff(data.lastDate, new Date(nowMs).toDateString());
+  return diff <= 1 ? data.current : 0;
+}
+
 function getRequiredExp(level: number) {
   return level * 100;
 }
@@ -579,6 +664,8 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
           <span className="result-exp-text">
             Lv.{currentLevel} <span style={{ fontWeight: 'bold', color: '#39ff14' }}>(+{detail.gainedExp} EXP)</span>
             {detail.isOverworked && <span style={{ color: 'orange', marginLeft: '4px', fontSize: '0.8rem' }}>(疲労半減)</span>}
+            {detail.isSuperComp && <span style={{ color: '#39ff14', marginLeft: '4px', fontSize: '0.8rem' }}>(⚡超回復 x{SUPERCOMP_BONUS})</span>}
+            {detail.isPoorCondition && <span style={{ color: '#ff9f1c', marginLeft: '4px', fontSize: '0.8rem' }}>({detail.conditionLabel} x{detail.conditionMultiplier})</span>}
             {detail.isProteinBonus && <span style={{ color: '#00ffff', marginLeft: '4px', fontSize: '0.8rem' }}>(🥤 x1.3)</span>}
           </span>
           {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
@@ -627,6 +714,15 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [streak, setStreak] = useState<StreakData>(() => {
+    const saved = localStorage.getItem('trainingStreak');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { current: parsed.current ?? 0, best: parsed.best ?? 0, lastDate: parsed.lastDate ?? '' };
+    }
+    return { current: 0, best: 0, lastDate: '' };
+  });
+
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
   const [weight, setWeight] = useState<number | ''>('');
   const [reps, setReps] = useState<number | ''>('');
@@ -636,6 +732,7 @@ function App() {
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
+  const [conditionDropAlert, setConditionDropAlert] = useState<string[]>([]);
 
   // 時間経過に応じて表示を更新するためのティック（プロテインボタンの出現判定など）
   const [now, setNow] = useState<number>(() => Date.now());
@@ -660,9 +757,19 @@ function App() {
     return timeSinceLastTraining < requiredRecoveryMs && !isTrainedToday;
   };
 
+  // ヘルパー: 指定した筋肉が「超回復ピーク」（適時トレのボーナス対象）かどうかを判定する。
+  // 回復完了後～サボり圏に入る前（回復時間×GRACE まで）に鍛えるとボーナス。
+  const checkIsSuperComp = (muscle: MuscleType, currentStats: AppState) => {
+    const lastTrainedAt = currentStats[muscle]?.lastTrainedAt || 0;
+    if (lastTrainedAt === 0) return false;
+    const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+    const elapsed = Date.now() - lastTrainedAt;
+    return elapsed >= requiredRecoveryMs && elapsed <= requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR;
+  };
+
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
-  const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean } | null>(null);
+  const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean, streakCount: number, nextStreakMilestone: { days: number; title: string } | null } | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [achievementAlert, setAchievementAlert] = useState<Achievement | null>(null);
@@ -672,6 +779,7 @@ function App() {
     let hasChanges = false;
     const newStats = { ...stats };
     const droppedMuscles: string[] = [];
+    const conditionDrops: string[] = [];
 
     (Object.keys(newStats) as MuscleType[]).forEach(muscle => {
       const mStat = newStats[muscle];
@@ -683,11 +791,34 @@ function App() {
         }
         mStat.lastTrainedAt = now;
       }
+
+      // サボりによるコンディション減衰：回復時間×GRACE を過ぎた放置分を精算する。
+      // conditionUpdatedAt を進めることで次回起動時に二重計上しない。
+      if (mStat.lastTrainedAt) {
+        const recoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+        const graceEnd = mStat.lastTrainedAt + recoveryMs * CONDITION_SABORI_GRACE_FACTOR;
+        const anchor = Math.max(mStat.conditionUpdatedAt ?? 0, graceEnd);
+        if (now > anchor) {
+          const neglectedDays = (now - anchor) / (24 * 60 * 60 * 1000);
+          const lost = Math.floor(neglectedDays * CONDITION_SABORI_DECAY_PER_DAY);
+          if (lost > 0) {
+            const cur = mStat.condition ?? MAX_CONDITION;
+            const next = Math.max(0, cur - lost);
+            if (next !== cur) {
+              mStat.condition = next;
+              conditionDrops.push(MUSCLE_NAMES[muscle]);
+            }
+            mStat.conditionUpdatedAt = now;
+            hasChanges = true;
+          }
+        }
+      }
     });
 
     if (hasChanges) {
       setStats(newStats);
-      setDetrainAlert(droppedMuscles);
+      if (droppedMuscles.length > 0) setDetrainAlert(droppedMuscles);
+      if (conditionDrops.length > 0) setConditionDropAlert(conditionDrops);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -703,6 +834,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('trainingLogs', JSON.stringify(trainingLogs));
   }, [trainingLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('trainingStreak', JSON.stringify(streak));
+  }, [streak]);
 
   useEffect(() => {
     const savedUnlocked = localStorage.getItem('unlockedAchievements');
@@ -743,6 +878,16 @@ function App() {
       setTimeout(() => setBestPumpAlert(null), 2500);
     }
 
+    // 連続トレーニング日数（ストリーク）を更新する。報酬はEXPではなく称号なので、
+    // ここで baseGainedExp には手を加えない（部位EXPの負荷連動思想を守る）。
+    const todayStr = new Date().toDateString();
+    let nextStreak: StreakData = streak;
+    if (streak.lastDate !== todayStr) {
+      const gap = streak.lastDate ? dayDiff(streak.lastDate, todayStr) : Infinity;
+      const current = gap === 1 ? streak.current + 1 : 1; // 昨日から継続なら+1、それ以外は途切れて1から
+      nextStreak = { current, best: Math.max(streak.best, current), lastDate: todayStr };
+    }
+
     const details: RecordResultDetail[] = [];
     const newEvolutions: { muscle: MuscleType, phase: number, branch?: EvolutionBranch }[] = [];
     const newOverworkedMuscles: MuscleType[] = [];
@@ -760,6 +905,7 @@ function App() {
         // 超回復（ペナルティ）とプロテインボーナスの判定
         let expToAdd = Math.max(1, Math.floor(baseGainedExp * target.expRatio));
         const isRecovering = checkIsRecovering(muscle, stats);
+        const isSuperComp = checkIsSuperComp(muscle, stats);
 
         let isOverworked = false;
         let isProteinBonus = false;
@@ -778,7 +924,29 @@ function App() {
           expToAdd = Math.max(1, Math.floor(expToAdd * 1.3));
           isProteinBonus = true;
         }
-        
+
+        // 超回復ピーク（適時トレ）ボーナス。回復完了後～サボり圏に入る前に鍛えると加算。
+        // 部位ごとの負荷・回復タイミングに連動した報酬なので、過剰トレ/プロテインとは別軸で乗算する。
+        if (isSuperComp) {
+          expToAdd = Math.max(1, Math.floor(expToAdd * SUPERCOMP_BONUS));
+        }
+
+        // コンディションによるペナルティ。過去の育成ミス（過剰トレ・サボり）で調子が
+        // 落ちていると、今回の獲得EXPが減る（マイナスにはならない）。今回の記録前の
+        // コンディションで判定する＝「ミスのツケを次回に払う」仕組み。
+        const currentCondition = current.condition ?? MAX_CONDITION;
+        const conditionTier = getConditionTier(currentCondition);
+        let isPoorCondition = false;
+        if (conditionTier.multiplier < 1) {
+          expToAdd = Math.max(1, Math.floor(expToAdd * conditionTier.multiplier));
+          isPoorCondition = true;
+        }
+
+        // 次回に向けてコンディションを更新する。過剰トレは低下、適切なトレは回復。
+        const nextCondition = isRecovering
+          ? Math.max(0, currentCondition - CONDITION_OVERWORK_PENALTY)
+          : Math.min(MAX_CONDITION, currentCondition + CONDITION_TRAIN_RECOVERY);
+
         let newExp = current.exp + expToAdd;
         let newLevel = current.level;
         let didLevelUp = false;
@@ -816,6 +984,10 @@ function App() {
           gainedExp: expToAdd,
           isOverworked,
           isProteinBonus,
+          isSuperComp,
+          isPoorCondition,
+          conditionMultiplier: conditionTier.multiplier,
+          conditionLabel: isPoorCondition ? conditionTier.label : undefined,
           evolutionPhase,
           evolutionBranch: evolutionPhase === 3 ? branch : undefined
         });
@@ -827,11 +999,17 @@ function App() {
           lastTrainedAt: Date.now(),
           hasProteinBonus: false, // プロテイン効果を消費
           proteinBonusMultiplier: undefined,
-          evolutionBranch: branch
+          evolutionBranch: branch,
+          condition: nextCondition,
+          conditionUpdatedAt: Date.now()
         };
       });
     }
     setStats(nextStats);
+
+    if (nextStreak !== streak) {
+      setStreak(nextStreak);
+    }
 
     if (newOverworkedMuscles.length > 0) {
       setOverworkAlerts(newOverworkedMuscles);
@@ -840,7 +1018,7 @@ function App() {
     // 実績判定は反映後の nextStats を使う
     const nextStatsToUse = nextStats;
 
-    setRecordResult({ details, isBestPump });
+    setRecordResult({ details, isBestPump, streakCount: nextStreak.current, nextStreakMilestone: getNextStreakMilestone(nextStreak) });
 
     if (newEvolutions.length > 0) {
       setEvolutionAlerts(prev => [...prev, ...newEvolutions]);
@@ -865,7 +1043,7 @@ function App() {
       let finalUnlocked = [...prevUnlocked];
       
       ACHIEVEMENTS.forEach(ach => {
-        if (!finalUnlocked.includes(ach.id) && ach.check(nextStatsToUse, updatedLogs)) {
+        if (!finalUnlocked.includes(ach.id) && ach.check(nextStatsToUse, updatedLogs, nextStreak)) {
           newlyUnlocked.push(ach);
           finalUnlocked.push(ach.id);
         }
@@ -1499,7 +1677,48 @@ function App() {
       {/* --- タブコンテンツ：キャラクター --- */}
       {activeTab === 'characters' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          
+
+          {/* 連続トレーニング日数（ストリーク）。報酬はEXPではなく称号なので、次に狙える称号を示す。 */}
+          {(() => {
+            const effStreak = getEffectiveStreak(streak, now);
+            const nextMilestone = getNextStreakMilestone(streak);
+            return (
+              <div className="glass-panel" style={{ width: '100%', marginBottom: '1rem', textAlign: 'center', borderColor: effStreak > 0 ? '#ff6b35' : undefined, background: effStreak > 0 ? 'rgba(255, 107, 53, 0.08)' : undefined }}>
+                {effStreak > 0 ? (
+                  <>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b35' }}>
+                      🔥 {effStreak}日連続トレ中！
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
+                      {nextMilestone
+                        ? `あと${nextMilestone.days - effStreak}日で称号「${nextMilestone.title}」！`
+                        : '全ての連続称号を達成！継続をキープしよう'}
+                      {streak.best > 0 && <><br />最高記録：{streak.best}日</>}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                      🔥 連続トレ記録：なし
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
+                      毎日どこかを鍛えて連続記録を伸ばそう（称号がもらえる！）{streak.best > 0 && ` 最高記録：${streak.best}日`}
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {conditionDropAlert.length > 0 && (
+            <div className="glass-panel" style={{ borderColor: '#ff9f1c', backgroundColor: 'rgba(255, 159, 28, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
+              <h3 style={{ color: '#ff9f1c' }}>😓 コンディション低下</h3>
+              <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>トレーニングをサボったため、筋肉の調子が落ちました。回復するまで次回の獲得EXPが減ってしまいます…</p>
+              <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{conditionDropAlert.join('、')}</p>
+              <button onClick={() => setConditionDropAlert([])} style={{ borderColor: '#ff9f1c', color: '#ff9f1c', marginTop: '0.5rem', padding: '0.5rem 1rem' }}>確認した</button>
+            </div>
+          )}
+
           {overworkAlerts.length > 0 && (
             <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
               <h3 style={{ color: 'orange' }}>⚠️ オーバーワーク注意！</h3>
@@ -1564,12 +1783,17 @@ function App() {
                   const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
                   const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
                   const isRecovering = checkIsRecovering(muscle, stats);
+                  const isSuperCompReady = checkIsSuperComp(muscle, stats); // 超回復ピーク（今鍛えるとEXPボーナス）
                   const isTrainedToday = (mStats.lastTrainedAt || 0) > 0 && new Date(mStats.lastTrainedAt!).toDateString() === new Date().toDateString();
 
                   // プロテインボーナス関連の判定
                   const isProteinTarget = (mStats.lastTrainedAt || 0) > 0 && timeSinceLastTraining <= 2 * 60 * 60 * 1000 && !mStats.proteinBonusMultiplier && !mStats.hasProteinBonus;
                   const hasGoldenBonus = mStats.proteinBonusMultiplier === 1.5;
                   const hasNormalBonus = mStats.proteinBonusMultiplier === 1.3 || mStats.hasProteinBonus;
+
+                  // コンディション（調子）：既にトレーニングしたことがある部位のみ表示対象
+                  const conditionTier = getConditionTier(mStats.condition ?? MAX_CONDITION);
+                  const showCondition = (mStats.lastTrainedAt || 0) > 0;
 
                   return (
                     <div 
@@ -1615,6 +1839,15 @@ function App() {
                             {branchInfo.emoji}
                           </div>
                         )}
+                        {showCondition && (
+                          <div
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content={`コンディション: ${conditionTier.label}${conditionTier.multiplier < 1 ? `（次回EXP x${conditionTier.multiplier}）` : ''}`}
+                            style={{ position: 'absolute', bottom: '-4px', left: '2px', fontSize: '0.9rem', lineHeight: 1, filter: `drop-shadow(0 0 2px ${conditionTier.color})`, pointerEvents: 'auto' }}
+                          >
+                            {conditionTier.emoji}
+                          </div>
+                        )}
                         {isRecovering && (
                           <div
                             data-tooltip-id="calendar-tooltip"
@@ -1622,6 +1855,15 @@ function App() {
                             style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(0,0,0,0.7)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(255,255,255,0.2)' }}
                           >
                             💤
+                          </div>
+                        )}
+                        {isSuperCompReady && !isTrainedToday && (
+                          <div
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}`}
+                            style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(57, 255, 20, 0.2)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(57, 255, 20, 0.5)', animation: 'pulse 1.5s infinite' }}
+                          >
+                            ⚡
                           </div>
                         )}
                         {(hasGoldenBonus || hasNormalBonus || isProteinTarget) && (
@@ -1931,6 +2173,16 @@ function App() {
                 ⭐ BEST PUMP BONUS (x1.5 EXP) ⭐
               </p>
             )}
+            {recordResult.streakCount >= 2 && (
+              <p style={{ color: '#ff6b35', fontWeight: 'bold', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                🔥 {recordResult.streakCount}日連続トレ中！
+                {recordResult.nextStreakMilestone && (
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.8rem' }}>
+                    {' '}（あと{recordResult.nextStreakMilestone.days - recordResult.streakCount}日で称号「{recordResult.nextStreakMilestone.title}」）
+                  </span>
+                )}
+              </p>
+            )}
             
             <div style={{ maxHeight: '60vh', overflowY: 'auto', marginBottom: '1.5rem' }}>
               {recordResult.details.map((detail, idx) => (
@@ -2070,7 +2322,13 @@ function App() {
                   const isTrainedToday = new Date(mStats.lastTrainedAt).toDateString() === new Date().toDateString();
 
                   if (elapsedMs >= requiredMs || isTrainedToday) {
-                    return <span style={{ color: '#39ff14' }}>回復完了！トレーニング可能です</span>;
+                    const inPeak = !isTrainedToday && elapsedMs <= requiredMs * CONDITION_SABORI_GRACE_FACTOR;
+                    return (
+                      <span style={{ color: '#39ff14' }}>
+                        回復完了！トレーニング可能です
+                        {inPeak && <><br />⚡ 超回復ピーク！今鍛えると獲得EXP x{SUPERCOMP_BONUS}</>}
+                      </span>
+                    );
                   } else {
                     const remainingHours = Math.ceil((requiredMs - elapsedMs) / (60 * 60 * 1000));
                     return (
@@ -2082,6 +2340,34 @@ function App() {
                   }
                 })()}
               </div>
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>💗</span> コンディション（調子）
+              </h4>
+              {(() => {
+                const mStats = stats[selectedMuscleInfo];
+                const condition = mStats.condition ?? MAX_CONDITION;
+                const tier = getConditionTier(condition);
+                return (
+                  <div style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>{tier.emoji}</span>
+                      <span style={{ color: tier.color, fontWeight: 'bold' }}>{tier.label}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>（{condition}/{MAX_CONDITION}）</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
+                      <div style={{ width: `${condition}%`, height: '100%', background: tier.color, transition: 'width 0.5s ease-out' }} />
+                    </div>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                      {tier.multiplier < 1
+                        ? `育成ミス（過剰トレ・サボり）で調子が低下中。次回の獲得EXPが x${tier.multiplier} になります。適切なトレーニングで回復します。`
+                        : '好調です。過剰なトレーニングやサボりが続くと低下し、次回の獲得EXPが減ります。'}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ marginBottom: '1.2rem' }}>
