@@ -768,6 +768,8 @@ function App() {
   };
 
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
+  // 図鑑用の静的情報モーダル（筋肉の説明・Tipsなど、育成状況に依らない情報を表示する）
+  const [selectedZukanMuscle, setSelectedZukanMuscle] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean, streakCount: number, nextStreakMilestone: { days: number; title: string } | null } | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -1589,7 +1591,7 @@ function App() {
                   <div
                     key={muscle}
                     className="glass-panel"
-                    onClick={() => setSelectedMuscleInfo(muscle)}
+                    onClick={() => setSelectedZukanMuscle(muscle)}
                     style={{ padding: '0.8rem', cursor: 'pointer' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
@@ -2314,15 +2316,6 @@ function App() {
 
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>📖</span> 概要
-              </h4>
-              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                {MUSCLE_DETAILS[selectedMuscleInfo].description}
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '1.2rem' }}>
-              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>💤</span> 休息ステータス
               </h4>
               <div style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
@@ -2383,15 +2376,82 @@ function App() {
               })()}
             </div>
 
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 1.2rem', lineHeight: 1.5 }}>
+              📚 筋肉の解説・おすすめ種目・Tips は<strong style={{ color: 'var(--text-accent)' }}>図鑑</strong>で確認できます
+            </p>
+
+            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+          </div>
+        </div>
+      )}
+
+      {/* 図鑑の筋肉詳細モーダル：育成状況に依らない静的な情報（説明・おすすめ種目・Tips・分岐進化タイプ）を表示する */}
+      {selectedZukanMuscle && (
+        <div className="modal-overlay" onClick={() => setSelectedZukanMuscle(null)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
+            <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedZukanMuscle]}</span>
+                  <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedZukanMuscle]}</h2>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>📚 図鑑</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <img
+                src={getSpriteSrc(selectedZukanMuscle, 3)}
+                onError={e => handleSpriteError(e, selectedZukanMuscle)}
+                alt={MUSCLE_NAMES[selectedZukanMuscle]}
+                style={{ height: '120px', objectFit: 'contain' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>📖</span> 概要
+              </h4>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_DETAILS[selectedZukanMuscle].description}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>💤</span> 超回復の目安
+              </h4>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                {MUSCLE_RECOVERY_HOURS[selectedZukanMuscle]}時間ごとに超回復するタイプの筋肉です。
+              </p>
+            </div>
+
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>🏋️</span> おすすめトレーニング
               </h4>
               <ul style={{ fontSize: '0.85rem', paddingLeft: '1.5rem', lineHeight: '1.5', margin: 0 }}>
-                {MUSCLE_DETAILS[selectedMuscleInfo].effectiveExercises.map(ex => (
+                {MUSCLE_DETAILS[selectedZukanMuscle].effectiveExercises.map(ex => (
                   <li key={ex}>{ex}</li>
                 ))}
               </ul>
+            </div>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>🧬</span> 分岐進化タイプ
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {(Object.keys(BRANCH_INFO) as EvolutionBranch[]).map(b => {
+                  const info = BRANCH_INFO[b];
+                  return (
+                    <div key={b} style={{ fontSize: '0.8rem', lineHeight: '1.5' }}>
+                      <span style={{ color: info.color, fontWeight: 'bold' }}>{info.emoji} {info.label}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>：{info.description}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
@@ -2399,11 +2459,11 @@ function App() {
                 <span>💡</span> Tips
               </h4>
               <p style={{ fontSize: '0.8rem', lineHeight: '1.5', margin: 0 }}>
-                {MUSCLE_DETAILS[selectedMuscleInfo].trivia}
+                {MUSCLE_DETAILS[selectedZukanMuscle].trivia}
               </p>
             </div>
 
-            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+            <button onClick={() => setSelectedZukanMuscle(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
         </div>
       )}
