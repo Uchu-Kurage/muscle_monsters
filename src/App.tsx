@@ -1837,15 +1837,6 @@ function App() {
                             {branchInfo.emoji}
                           </div>
                         )}
-                        {showCondition && (
-                          <div
-                            data-tooltip-id="calendar-tooltip"
-                            data-tooltip-content={`コンディション: ${conditionTier.label}${conditionTier.multiplier < 1 ? `（次回EXP x${conditionTier.multiplier}）` : ''}`}
-                            style={{ position: 'absolute', bottom: '-4px', left: '2px', fontSize: '0.9rem', lineHeight: 1, filter: `drop-shadow(0 0 2px ${conditionTier.color})`, pointerEvents: 'auto' }}
-                          >
-                            {conditionTier.emoji}
-                          </div>
-                        )}
                         {isRecovering && (
                           <div
                             data-tooltip-id="calendar-tooltip"
@@ -1901,6 +1892,23 @@ function App() {
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
                             <div style={{ width: `${(timeSinceLastTraining / requiredRecoveryMs) * 100}%`, height: '100%', background: 'orange', transition: 'width 0.5s ease-out' }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* コンディションゲージ */}
+                      {showCondition && (
+                        <div
+                          style={{ width: '100%', marginTop: '0.5rem' }}
+                          data-tooltip-id="calendar-tooltip"
+                          data-tooltip-content={`コンディション: ${conditionTier.label}${conditionTier.multiplier < 1 ? `（次回EXP x${conditionTier.multiplier}）` : ''}`}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '2px' }}>
+                            <span style={{ color: conditionTier.color }}>{conditionTier.emoji} 調子</span>
+                            <span style={{ color: conditionTier.color }}>{mStats.condition ?? MAX_CONDITION}/{MAX_CONDITION}</span>
+                          </div>
+                          <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${mStats.condition ?? MAX_CONDITION}%`, height: '100%', background: conditionTier.color, transition: 'width 0.5s ease-out' }} />
                           </div>
                         </div>
                       )}
