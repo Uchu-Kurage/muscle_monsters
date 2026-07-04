@@ -1894,6 +1894,19 @@ function App() {
                         </div>
                       </div>
 
+                      {/* 休息ゲージ */}
+                      {isRecovering && (
+                        <div style={{ width: '100%', marginTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'orange', marginBottom: '2px' }}>
+                            <span>休息中</span>
+                            <span>あと{Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000))}時間</span>
+                          </div>
+                          <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${(timeSinceLastTraining / requiredRecoveryMs) * 100}%`, height: '100%', background: 'orange', transition: 'width 0.5s ease-out' }} />
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   );
                 })}
