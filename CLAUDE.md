@@ -134,15 +134,26 @@ exercises use the user's body weight instead of a weight input.
   skipping (idle past `MUSCLE_RECOVERY_HOURS × CONDITION_SABORI_GRACE_FACTOR`)
   decays it on load at `CONDITION_SABORI_DECAY_PER_DAY`/day, settled via
   `conditionUpdatedAt` to avoid double-counting.
-- **Streak bonus** (global `StreakData`): consecutive training days grant a
-  session-wide EXP bonus (`getStreakBonus`: 3d ×1.1, 7d ×1.2, 14d ×1.3) applied
-  to `baseGainedExp`. Missing a day resets it (`getEffectiveStreak`).
+- **Super-compensation / 適時トレ bonus**: training a muscle in its peak window
+  — after recovery is complete but before the サボり decay zone
+  (`MUSCLE_RECOVERY_HOURS ≤ elapsed ≤ ×CONDITION_SABORI_GRACE_FACTOR`,
+  `checkIsSuperComp`) — grants `SUPERCOMP_BONUS` (×1.2). This makes the recovery
+  timing axis two-sided (too early = overwork ½, on time = ×1.2, too late =
+  condition decay) and keeps the reward per-muscle / load-linked. Cards show a
+  ⚡ "狙い目" badge while a muscle is in this window.
+- **Streak** (global `StreakData`, key `trainingStreak`): consecutive training
+  days on *any* muscle. Deliberately **does not grant EXP** (that would break the
+  per-muscle load-linked EXP philosophy) — instead it awards **titles** at
+  milestones (`STREAK_TITLES` → generated `streak_*` achievements, checked via
+  `streak.best`). Missing a day resets it (`getEffectiveStreak`); the banner
+  shows the next milestone title (`getNextStreakMilestone`).
 
 ### Achievements
 
-`ACHIEVEMENTS` each carry a `check(stats, logs)` predicate evaluated after every
-recorded set. Newly satisfied ones unlock, show an alert, and can be equipped as
-a displayed title (`selectedTitle`).
+`ACHIEVEMENTS` each carry a `check(stats, logs, streak)` predicate evaluated
+after every recorded set. Newly satisfied ones unlock, show an alert, and can be
+equipped as a displayed title (`selectedTitle`). Streak-milestone titles are
+generated from `STREAK_TITLES` and check `streak.best`.
 
 ## Persistence
 
