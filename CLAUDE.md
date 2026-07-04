@@ -125,6 +125,18 @@ exercises use the user's body weight instead of a weight input.
   for backward compatibility (treated as ×1.3).
 - **Detraining**: on app load, any muscle not trained for
   `DETRAIN_THRESHOLD_MS` (14 days) has its EXP halved, with a warning alert.
+- **Condition / 育成ミス** (per muscle, `MuscleStats.condition` 0–100, default
+  100): "raising mistakes" lower a muscle's condition, which applies a penalty
+  multiplier to the *next* recorded gain (see `CONDITION_TIERS` /
+  `getConditionTier`: 疲労 ×0.8, 絶不調 ×0.6). It never goes negative and never
+  de-levels. Overwork (training while recovering) drops it by
+  `CONDITION_OVERWORK_PENALTY`; a proper set restores `CONDITION_TRAIN_RECOVERY`;
+  skipping (idle past `MUSCLE_RECOVERY_HOURS × CONDITION_SABORI_GRACE_FACTOR`)
+  decays it on load at `CONDITION_SABORI_DECAY_PER_DAY`/day, settled via
+  `conditionUpdatedAt` to avoid double-counting.
+- **Streak bonus** (global `StreakData`): consecutive training days grant a
+  session-wide EXP bonus (`getStreakBonus`: 3d ×1.1, 7d ×1.2, 14d ×1.3) applied
+  to `baseGainedExp`. Missing a day resets it (`getEffectiveStreak`).
 
 ### Achievements
 
@@ -141,6 +153,7 @@ State is persisted to `localStorage` via `useEffect` hooks. Keys:
 - `userBodyWeight` — number
 - `unlockedAchievements` — array of achievement ids
 - `selectedTitle` — equipped title string
+- `trainingStreak` — `StreakData` (`current` / `best` / `lastDate`)
 
 On load, saved stats are merged over `INITIAL_STATE` so newly added muscles get
 defaults. **When you add a field to a persisted structure, handle old saved data
@@ -151,8 +164,9 @@ users have existing `localStorage`.
 
 Four tabs (`TabType`), switched by the fixed bottom `.tab-container`:
 
-- `characters` (モンスター) — muscle cards grouped by body region, protein
-  button, overwork/detrain alerts, per-muscle detail modal
+- `characters` (モンスター) — streak banner, muscle cards grouped by body region
+  (each with a condition badge), protein button, overwork/detrain/condition
+  alerts, per-muscle detail modal (includes a condition gauge)
 - `record` (記録) — the logging form: recommended exercises, exercise picker,
   target preview, weight/reps/sets inputs
 - `logs` (履歴) — activity calendar (`renderCalendar`) + recent log list
