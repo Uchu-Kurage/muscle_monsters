@@ -2310,6 +2310,84 @@ function App() {
               );
             })()}
 
+            {/* 現在の状態：カード上のアイコンが示す「今この筋肉がどんな状態か」を、
+                同じ絵文字を並べて一覧で説明する。カードのアイコン⇔意味の対応表として機能する。 */}
+            <div style={{ marginBottom: '1.2rem' }}>
+              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>🔎</span> 現在の状態
+              </h4>
+              {(() => {
+                const mStats = stats[selectedMuscleInfo];
+                const requiredRecoveryMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
+                const timeSinceLastTraining = Date.now() - (mStats.lastTrainedAt || 0);
+                const hasTrained = (mStats.lastTrainedAt || 0) > 0;
+                const isTrainedToday = hasTrained && new Date(mStats.lastTrainedAt!).toDateString() === new Date().toDateString();
+                const isRecovering = checkIsRecovering(selectedMuscleInfo, stats);
+                const isSuperCompReady = checkIsSuperComp(selectedMuscleInfo, stats);
+                const isProteinTarget = hasTrained && timeSinceLastTraining <= 2 * 60 * 60 * 1000 && !mStats.proteinBonusMultiplier && !mStats.hasProteinBonus;
+                const hasGoldenBonus = mStats.proteinBonusMultiplier === 1.5;
+                const hasNormalBonus = mStats.proteinBonusMultiplier === 1.3 || mStats.hasProteinBonus;
+                const conditionTier = getConditionTier(mStats.condition ?? MAX_CONDITION);
+                const branch = resolveBranch(mStats, selectedMuscleInfo, trainingLogs);
+                const branchInfo = branch ? BRANCH_INFO[branch] : null;
+
+                const items: { emoji: string; label: string; color: string; desc: string }[] = [];
+
+                if (isTrainedToday) {
+                  items.push({ emoji: '💪', label: '本日トレーニング済み', color: '#39ff14', desc: '今日この部位を鍛えました。カードが緑色に光ります。' });
+                }
+                if (isRecovering) {
+                  const remainingHours = Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000));
+                  items.push({ emoji: '💤', label: '休息中', color: 'orange', desc: `超回復まであと約${remainingHours}時間。今鍛えると疲労で獲得EXPが半減します。` });
+                }
+                if (isSuperCompReady && !isTrainedToday) {
+                  items.push({ emoji: '⚡', label: '超回復ピーク（狙い目）', color: '#39ff14', desc: `回復が完了した狙い目の状態。今鍛えると獲得EXPが x${SUPERCOMP_BONUS} になります。` });
+                }
+                if (hasGoldenBonus) {
+                  items.push({ emoji: '✨', label: 'ゴールデンタイム', color: '#ffea00', desc: '次回の獲得EXPが x1.5 になります（トレーニングで消費）。' });
+                } else if (hasNormalBonus) {
+                  items.push({ emoji: '🥤', label: 'プロテインボーナス', color: '#00ffff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
+                } else if (isProteinTarget) {
+                  items.push({ emoji: '🥤', label: 'プロテイン対象', color: '#00ffff', desc: 'トレーニングから2時間以内。今プロテインを飲むと次回EXPにボーナスが付きます。' });
+                }
+                if (conditionTier.multiplier < 1) {
+                  items.push({ emoji: conditionTier.emoji, label: `コンディション低下（${conditionTier.label}）`, color: conditionTier.color, desc: `育成ミスで調子が低下中。次回の獲得EXPが x${conditionTier.multiplier} になります。` });
+                }
+                if (branchInfo) {
+                  items.push({ emoji: branchInfo.emoji, label: `分岐進化: ${branchInfo.label}`, color: branchInfo.color, desc: branchInfo.description });
+                }
+
+                if (items.length === 0) {
+                  return (
+                    <p style={{ fontSize: '0.83rem', lineHeight: 1.5, margin: 0, color: 'var(--text-secondary)' }}>
+                      {hasTrained ? '好調で、特に目立った状態はありません。' : 'まだトレーニング記録がありません。記録すると状態が表示されます。'}
+                    </p>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {items.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                        <span style={{
+                          flexShrink: 0, width: '28px', height: '28px', borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem',
+                          background: 'rgba(0,0,0,0.3)', border: `1px solid ${item.color}`,
+                          filter: `drop-shadow(0 0 2px ${item.color})`
+                        }}>
+                          {item.emoji}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: item.color, lineHeight: 1.3 }}>{item.label}</span>
+                          <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.desc}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>💤</span> 休息ステータス
