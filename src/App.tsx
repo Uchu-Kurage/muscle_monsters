@@ -1244,14 +1244,10 @@ function App() {
       return nextStats;
     });
 
-    if (appliedGoldenCount > 0 || appliedNormalCount > 0) {
-      let msg = "";
-      if (appliedGoldenCount > 0) msg += `${appliedGoldenCount}箇所の筋肉にゴールデンタイムボーナス（次回EXP1.5倍）が適用されました！\n`;
-      if (appliedNormalCount > 0) msg += `${appliedNormalCount}箇所の筋肉に通常プロテインボーナス（次回EXP1.3倍）が適用されました！`;
-      alert(msg.trim());
-    } else {
-      alert(`筋トレ後2時間以内の筋肉がないか、すでに全ての対象部位により高いボーナスが適用されています。\n※プロテイン効果は筋トレ後2時間以内のみ有効です！`);
-    }
+    let msg = "🥤 プロテインを飲みました！\n";
+    if (appliedGoldenCount > 0) msg += `${appliedGoldenCount}箇所の筋肉にゴールデンタイムボーナス（次回EXP1.5倍）が適用されました！\n`;
+    if (appliedNormalCount > 0) msg += `${appliedNormalCount}箇所の筋肉に通常プロテインボーナス（次回EXP1.3倍）が適用されました！`;
+    alert(msg.trim());
   };
 
   // プロテインボーナスを適用できる部位が1つでもあるか（handleDrinkProtein と同じ条件）
