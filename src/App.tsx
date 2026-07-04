@@ -2409,6 +2409,28 @@ function App() {
               📚 筋肉の解説・おすすめ種目・Tips は<strong style={{ color: 'var(--text-accent)' }}>図鑑</strong>で確認できます
             </p>
 
+            {/* この部位を鍛える：記録タブへ遷移し、この筋肉を主対象とする種目を事前選択する。
+                主対象の種目が無い場合は補助的に含む種目へフォールバックする。 */}
+            <button
+              onClick={() => {
+                const muscle = selectedMuscleInfo;
+                const targetExercise =
+                  EXERCISES.find(ex => ex.primaryMuscle === muscle) ??
+                  EXERCISES.find(ex => ex.targets.some(t => t.muscle === muscle));
+                if (targetExercise) setSelectedExerciseId(targetExercise.id);
+                setSelectedMuscleInfo(null);
+                setActiveTab('record');
+              }}
+              style={{
+                width: '100%', padding: '1rem', marginBottom: '0.6rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                background: 'var(--btn-hover-bg)', color: 'var(--btn-hover-text)',
+                border: '1px solid #39ff14', fontWeight: 'bold'
+              }}
+            >
+              🏋️ この部位を鍛える
+            </button>
+
             <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
         </div>
