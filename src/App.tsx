@@ -2400,7 +2400,7 @@ function App() {
     <div className="tab-container">
       <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>
         <span className="tab-icon">👾</span>
-        <span className="tab-label">モンスター</span>
+        <span className="tab-label">マスモン</span>
       </button>
       <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>
         <span className="tab-icon">🏋️</span>
