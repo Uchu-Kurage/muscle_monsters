@@ -1904,7 +1904,7 @@ function App() {
                           data-tooltip-content={`コンディション: ${conditionTier.label}${conditionTier.multiplier < 1 ? `（次回EXP x${conditionTier.multiplier}）` : ''}`}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '2px' }}>
-                            <span style={{ color: conditionTier.color }}>{conditionTier.emoji} 調子</span>
+                            <span style={{ color: conditionTier.color }}>調子 {conditionTier.emoji}</span>
                             <span style={{ color: conditionTier.color }}>{mStats.condition ?? MAX_CONDITION}/{MAX_CONDITION}</span>
                           </div>
                           <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -2394,34 +2394,13 @@ function App() {
 
             <div style={{ marginBottom: '1.2rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>💤</span> 休息ステータス
+                <span>🕒</span> 最後にトレーニングした日時
               </h4>
               <div style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                超回復の目安: {MUSCLE_RECOVERY_HOURS[selectedMuscleInfo]}時間<br />
                 {(() => {
                   const mStats = stats[selectedMuscleInfo];
                   if (!mStats.lastTrainedAt) return <span style={{ color: 'var(--text-secondary)' }}>トレーニング記録なし</span>;
-                  const requiredMs = MUSCLE_RECOVERY_HOURS[selectedMuscleInfo] * 60 * 60 * 1000;
-                  const elapsedMs = Date.now() - mStats.lastTrainedAt;
-                  const isTrainedToday = new Date(mStats.lastTrainedAt).toDateString() === new Date().toDateString();
-
-                  if (elapsedMs >= requiredMs || isTrainedToday) {
-                    const inPeak = !isTrainedToday && elapsedMs <= requiredMs * CONDITION_SABORI_GRACE_FACTOR;
-                    return (
-                      <span style={{ color: '#39ff14' }}>
-                        回復完了！トレーニング可能です
-                        {inPeak && <><br />⚡ 超回復ピーク！今鍛えると獲得EXP x{SUPERCOMP_BONUS}</>}
-                      </span>
-                    );
-                  } else {
-                    const remainingHours = Math.ceil((requiredMs - elapsedMs) / (60 * 60 * 1000));
-                    return (
-                      <span style={{ color: 'orange' }}>
-                        最後に鍛えた日時: {formatDate(mStats.lastTrainedAt)}<br />
-                        回復まであと約 {remainingHours}時間
-                      </span>
-                    );
-                  }
+                  return <span>{formatDate(mStats.lastTrainedAt)}</span>;
                 })()}
               </div>
             </div>
