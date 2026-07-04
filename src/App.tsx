@@ -1904,7 +1904,7 @@ function App() {
                           data-tooltip-content={`コンディション: ${conditionTier.label}${conditionTier.multiplier < 1 ? `（次回EXP x${conditionTier.multiplier}）` : ''}`}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '2px' }}>
-                            <span style={{ color: conditionTier.color }}>{conditionTier.emoji} 調子</span>
+                            <span style={{ color: conditionTier.color }}>調子 {conditionTier.emoji}</span>
                             <span style={{ color: conditionTier.color }}>{mStats.condition ?? MAX_CONDITION}/{MAX_CONDITION}</span>
                           </div>
                           <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
