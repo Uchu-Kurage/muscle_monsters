@@ -2335,7 +2335,6 @@ function App() {
                 const isProteinTarget = hasTrained && timeSinceLastTraining <= 2 * 60 * 60 * 1000 && !mStats.proteinBonusMultiplier && !mStats.hasProteinBonus;
                 const hasGoldenBonus = mStats.proteinBonusMultiplier === 1.5;
                 const hasNormalBonus = mStats.proteinBonusMultiplier === 1.3 || mStats.hasProteinBonus;
-                const conditionTier = getConditionTier(mStats.condition ?? MAX_CONDITION);
                 const branch = resolveBranch(mStats, selectedMuscleInfo, trainingLogs);
                 const branchInfo = branch ? BRANCH_INFO[branch] : null;
 
@@ -2357,9 +2356,6 @@ function App() {
                   items.push({ emoji: '🥤', label: 'プロテインボーナス', color: '#00ffff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
                 } else if (isProteinTarget) {
                   items.push({ emoji: '🥤', label: 'プロテイン対象', color: '#00ffff', desc: 'トレーニングから2時間以内。今プロテインを飲むと次回EXPにボーナスが付きます。' });
-                }
-                if (conditionTier.multiplier < 1) {
-                  items.push({ emoji: conditionTier.emoji, label: `コンディション低下（${conditionTier.label}）`, color: conditionTier.color, desc: `育成ミスで調子が低下中。次回の獲得EXPが x${conditionTier.multiplier} になります。` });
                 }
                 if (branchInfo) {
                   items.push({ emoji: branchInfo.emoji, label: `分岐進化: ${branchInfo.label}`, color: branchInfo.color, desc: branchInfo.description });
@@ -2428,34 +2424,6 @@ function App() {
                   }
                 })()}
               </div>
-            </div>
-
-            <div style={{ marginBottom: '1.2rem' }}>
-              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>💗</span> コンディション（調子）
-              </h4>
-              {(() => {
-                const mStats = stats[selectedMuscleInfo];
-                const condition = mStats.condition ?? MAX_CONDITION;
-                const tier = getConditionTier(condition);
-                return (
-                  <div style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '1.1rem' }}>{tier.emoji}</span>
-                      <span style={{ color: tier.color, fontWeight: 'bold' }}>{tier.label}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>（{condition}/{MAX_CONDITION}）</span>
-                    </div>
-                    <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
-                      <div style={{ width: `${condition}%`, height: '100%', background: tier.color, transition: 'width 0.5s ease-out' }} />
-                    </div>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                      {tier.multiplier < 1
-                        ? `育成ミス（過剰トレ・サボり）で調子が低下中。次回の獲得EXPが x${tier.multiplier} になります。適切なトレーニングで回復します。`
-                        : '好調です。過剰なトレーニングやサボりが続くと低下し、次回の獲得EXPが減ります。'}
-                    </span>
-                  </div>
-                );
-              })()}
             </div>
 
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 1.2rem', lineHeight: 1.5 }}>
