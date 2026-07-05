@@ -160,6 +160,43 @@ input:focus, select:focus {
   100% { transform: translate(-50%, -20px); opacity: 0; }
 }
 
+/* キャラのおしゃべり吹き出し（キャラクター一覧） */
+@keyframes bubbleIn {
+  from { transform: translateY(6px) scale(0.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.speech-bubble {
+  position: relative;
+  width: 100%;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(18, 22, 38, 0.96);
+  border: 1px solid var(--border-highlight);
+  border-radius: 10px;
+  font-size: 0.62rem;
+  line-height: 1.35;
+  color: var(--text-primary);
+  text-align: center;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+  animation: bubbleIn 0.35s ease-out;
+  word-break: break-word;
+  z-index: 3;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--border-highlight);
+}
+
 .monster-image {
   animation: float 3s ease-in-out infinite;
   filter: drop-shadow(0 0 15px rgba(255, 0, 255, 0.4));
