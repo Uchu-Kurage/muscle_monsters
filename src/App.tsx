@@ -472,6 +472,87 @@ function getEvolutionPhase(level: number): 1 | 2 | 3 {
   return 3;
 }
 
+// ===== プレイヤー登録 & キャラクター・コミュニケーション システム =====
+// プレイヤーは名前を登録でき、ニックネームを付けられたキャラだけがその名前を呼んで
+// 話しかけてくる。セリフはコンディション（調子）とレベル（進化フェーズ）で変化する。
+// テンプレート中の {name}=プレイヤー名 / {nick}=キャラのニックネーム を置換して表示する。
+const PLAYER_NAME_MAX_LENGTH = 10;
+
+// コンディション帯ごとのセリフ。CONDITION_TIERS と同じ min しきい値で引く。
+const CONDITION_LINES: { min: number; lines: string[] }[] = [
+  { min: 90, lines: [
+    '{name}、絶好調だぜ！今すぐにでも鍛えられる！',
+    'みなぎってきた…！{name}、一緒に限界を超えようぜ！',
+    '最高のコンディションだ！{name}、次のトレ、待ってるぜ！',
+  ]},
+  { min: 65, lines: [
+    '{name}、いい感じに仕上がってきたよ！',
+    '調子は上々だ。{name}、この勢いで鍛えていこう！',
+  ]},
+  { min: 40, lines: [
+    '{name}、ぼちぼちやってるよ。',
+    'まあまあってとこかな。{name}、そろそろ鍛えてくれる？',
+  ]},
+  { min: 20, lines: [
+    'ちょっと疲れたな…{name}、少し休ませてくれ。',
+    '{name}…調子がイマイチなんだ。無理はさせないでくれよ。',
+  ]},
+  { min: 0, lines: [
+    'もうダメだ…{name}、コンディションが最悪だよ…',
+    '{name}…力が入らない…回復するまで待ってくれ…',
+  ]},
+];
+
+// 進化フェーズ（レベル帯）ごとのセリフ
+const PHASE_LINES: Record<1 | 2 | 3, string[]> = {
+  1: [
+    '{name}、オレはまだまだこれからだ！鍛えてくれよな！',
+    'もっと強くなりたい！{name}、よろしく頼むぜ！',
+  ],
+  2: [
+    '{name}のおかげで強くなってきたぞ！',
+    'だいぶ様になってきただろ？{name}！',
+  ],
+  3: [
+    'ここまで育ててくれて感謝してるぜ、{name}！',
+    '{name}、オレはもう一人前だ！どんなトレーニングでも来い！',
+  ],
+};
+
+// 状態（休息中・超回復ピーク）ごとのセリフ。該当時のみ候補に加わる。
+const RECOVERING_LINES = [
+  '{name}、今は休息中だ。回復したらまた頑張ろうな！',
+  'ふぅ…いい筋肉痛だ。{name}、回復を待っててくれ。',
+];
+const SUPERCOMP_LINES = [
+  '今が鍛えどきだぜ、{name}！超回復のピークだ！',
+  '{name}、今ならいつもより成長できる！鍛えてくれ！',
+];
+
+// ニックネーム込みの汎用セリフ（いつでも候補に入る）
+const GENERAL_LINES = [
+  'オレの名前は{nick}！{name}、覚えてくれよな！',
+  '{name}、今日も一緒に頑張ろうぜ！',
+  '{name}に鍛えてもらえて、オレは幸せ者だぜ！',
+];
+
+// キャラの状態からランダムなセリフを1つ選び、プレイヤー名・ニックネームを埋め込んで返す。
+function pickCharacterLine(
+  mStats: MuscleStats,
+  ctx: { playerName: string; isRecovering: boolean; isSuperComp: boolean }
+): string {
+  const condition = mStats.condition ?? MAX_CONDITION;
+  const conditionLines = CONDITION_LINES.find(t => condition >= t.min)?.lines ?? [];
+  const phase = getEvolutionPhase(mStats.level);
+  const pool: string[] = [...conditionLines, ...PHASE_LINES[phase], ...GENERAL_LINES];
+  if (ctx.isRecovering) pool.push(...RECOVERING_LINES);
+  if (ctx.isSuperComp) pool.push(...SUPERCOMP_LINES);
+  const template = pool[Math.floor(Math.random() * pool.length)];
+  const name = ctx.playerName || 'トレーニー';
+  const nick = mStats.nickname || '';
+  return template.replace(/\{name\}/g, name).replace(/\{nick\}/g, nick);
+}
+
 // 各進化フェーズの表示情報（図鑑用）。unlockLevel はそのフェーズに到達する最低レベル。
 const PHASE_INFO: Record<1 | 2 | 3, { label: string; stage: string; unlockLevel: number }> = {
   1: { label: '第1形態', stage: '幼年期', unlockLevel: 1 },
@@ -782,6 +863,16 @@ function App() {
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [achievementAlert, setAchievementAlert] = useState<Achievement | null>(null);
 
+  // プレイヤー登録：登録した名前をニックネーム付きキャラが呼んでくれる。
+  const [playerName, setPlayerName] = useState<string>(() => localStorage.getItem('playerName') || '');
+  // 未登録なら初回起動時に登録モーダルを開く。登録済みでも編集用に開ける。
+  const [showPlayerModal, setShowPlayerModal] = useState<boolean>(() => !localStorage.getItem('playerName'));
+  const [playerNameDraft, setPlayerNameDraft] = useState('');
+
+  // キャラのおしゃべり（吹き出し）：ニックネーム付きキャラの中から1体が交代でしゃべる。
+  const [talkingMuscle, setTalkingMuscle] = useState<MuscleType | null>(null);
+  const [talkingLine, setTalkingLine] = useState('');
+
   useEffect(() => {
     const now = Date.now();
     let hasChanges = false;
@@ -861,6 +952,35 @@ function App() {
   useEffect(() => {
     if (selectedTitle) localStorage.setItem('selectedTitle', selectedTitle);
   }, [selectedTitle]);
+
+  useEffect(() => {
+    if (playerName) localStorage.setItem('playerName', playerName);
+  }, [playerName]);
+
+  // ニックネーム付きキャラのおしゃべり（吹き出し）を一定間隔で交代させる。
+  // ニックネームが1つも無ければ誰も話さない。セリフはコンディション・レベルで変化する。
+  useEffect(() => {
+    const nicknamed = (Object.keys(stats) as MuscleType[]).filter(m => stats[m].nickname);
+    if (nicknamed.length === 0) {
+      setTalkingMuscle(null);
+      setTalkingLine('');
+      return;
+    }
+    const speak = () => {
+      const muscle = nicknamed[Math.floor(Math.random() * nicknamed.length)];
+      const line = pickCharacterLine(stats[muscle], {
+        playerName,
+        isRecovering: checkIsRecovering(muscle, stats),
+        isSuperComp: checkIsSuperComp(muscle, stats),
+      });
+      setTalkingMuscle(muscle);
+      setTalkingLine(line);
+    };
+    speak();
+    const interval = setInterval(speak, 7000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats, playerName]);
 
   const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
   const isBodyweight = selectedExercise?.isBodyweight || false;
@@ -1270,6 +1390,14 @@ function App() {
       return { ...prev, [muscle]: next };
     });
     setEditingNickname(false);
+  };
+
+  // プレイヤー名を登録・変更する。空文字は登録扱いにしない（名前が無いとキャラが呼べないため）。
+  const handleSavePlayerName = () => {
+    const trimmed = playerNameDraft.trim().slice(0, PLAYER_NAME_MAX_LENGTH);
+    if (!trimmed) return;
+    setPlayerName(trimmed);
+    setShowPlayerModal(false);
   };
 
   // プロテインボーナスを適用できる部位が1つでもあるか（handleDrinkProtein と同じ条件）
@@ -1690,6 +1818,14 @@ function App() {
         )}
         <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスル<br />モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
+        {playerName && (
+          <button
+            onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
+            style={{ marginTop: '0.6rem', padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+          >
+            👤 {playerName} <span style={{ color: 'var(--text-secondary)' }}>✏️</span>
+          </button>
+        )}
       </div>
 
 
@@ -1846,7 +1982,14 @@ function App() {
                         </span>
                       )}
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
-                      
+
+                      {/* おしゃべり吹き出し：ニックネーム付きキャラが交代でプレイヤーに話しかける */}
+                      {talkingMuscle === muscle && talkingLine && (
+                        <div className="speech-bubble" key={talkingLine}>
+                          {talkingLine}
+                        </div>
+                      )}
+
                       <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
                         <img
                           src={getSpriteSrc(muscle, phase, branch)}
@@ -2208,6 +2351,50 @@ function App() {
 
       {/* --- タブコンテンツ：図鑑 --- */}
       {activeTab === 'encyclopedia' && renderEncyclopedia()}
+
+      {/* プレイヤー登録モーダル：未登録なら初回起動時に表示。登録した名前をキャラが呼んでくれる */}
+      {showPlayerModal && (
+        <div className="modal-overlay" style={{ zIndex: 1003 }} onClick={() => { if (playerName) setShowPlayerModal(false); }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out', maxWidth: '360px', width: '90%' }}>
+            <h1 style={{ color: 'var(--text-accent)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>👤 プレイヤー登録</h1>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.2rem', lineHeight: 1.6 }}>
+              あなたの名前を登録しよう！<br />
+              ニックネームを付けた筋肉モンスターが、この名前で話しかけてくれるよ。
+            </p>
+            <input
+              type="text"
+              value={playerNameDraft}
+              maxLength={PLAYER_NAME_MAX_LENGTH}
+              autoFocus
+              placeholder="プレイヤー名を入力"
+              onChange={e => setPlayerNameDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSavePlayerName(); }}
+              style={{
+                width: '100%', padding: '0.7rem 0.8rem', fontSize: '1rem', textAlign: 'center',
+                background: 'rgba(0,0,0,0.35)', color: 'var(--text-primary)',
+                border: '1px solid var(--border-highlight)', borderRadius: '8px', marginBottom: '1.2rem'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
+              <button
+                onClick={handleSavePlayerName}
+                disabled={!playerNameDraft.trim()}
+                style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', fontWeight: 'bold', background: playerNameDraft.trim() ? 'var(--text-accent)' : 'rgba(255,255,255,0.15)', color: playerNameDraft.trim() ? '#000' : 'var(--text-secondary)', border: 'none', borderRadius: '8px', cursor: playerNameDraft.trim() ? 'pointer' : 'not-allowed' }}
+              >
+                {playerName ? '変更する' : '登録する'}
+              </button>
+              {playerName && (
+                <button
+                  onClick={() => setShowPlayerModal(false)}
+                  style={{ flexShrink: 0, padding: '0.7rem 1rem', fontSize: '0.9rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  キャンセル
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Result Modal Overlay */}
       {recordResult && (
