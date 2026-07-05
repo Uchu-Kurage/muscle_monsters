@@ -277,7 +277,7 @@ const MUSCLE_READINGS: Record<MuscleType, string> = {
 };
 
 // ニックネーム登録時に提示するサンプルネーム。各部位のモチーフや役割にちなんだ人名。
-// タップするだけで入力欄に反映できる「おすすめ」候補として使う。
+// 入力欄のプレースホルダー（「例：〇〇」）として薄く表示する。
 const MUSCLE_NICKNAME_SAMPLES: Record<MuscleType, string> = {
   chest: 'ゴードン',              // 力強い響きの男性名。モチーフのゴリラと頼れる胸板から
   back: 'ウィルバー',            // 人類初飛行のライト兄弟の兄。背に広がる巨大な翼の象徴
@@ -2542,7 +2542,7 @@ function App() {
                       value={nicknameDraft}
                       maxLength={NICKNAME_MAX_LENGTH}
                       autoFocus
-                      placeholder="ニックネームを入力"
+                      placeholder={`例：${MUSCLE_NICKNAME_SAMPLES[selectedMuscleInfo]}`}
                       onChange={e => setNicknameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleSaveNickname(selectedMuscleInfo); }}
                       style={{
@@ -2562,16 +2562,6 @@ function App() {
                       style={{ flexShrink: 0, padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}
                     >
                       ✕
-                    </button>
-                  </div>
-                  {/* おすすめサンプルネーム：タップで入力欄に反映できる。部位ごとに用意 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>おすすめ：</span>
-                    <button
-                      onClick={() => setNicknameDraft(MUSCLE_NICKNAME_SAMPLES[selectedMuscleInfo])}
-                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
-                    >
-                      {MUSCLE_NICKNAME_SAMPLES[selectedMuscleInfo]}
                     </button>
                   </div>
                 </div>
