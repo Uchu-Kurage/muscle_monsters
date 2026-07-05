@@ -15,6 +15,7 @@ type EvolutionBranch = 'power' | 'endurance' | 'balanced';
 interface MuscleStats {
   level: number;
   exp: number;
+  nickname?: string;          // ユーザーがキャラ（部位モンスター）に付けたニックネーム。未設定なら部位名を表示
   lastTrainedAt?: number;
   hasProteinBonus?: boolean;
   proteinBonusMultiplier?: number;
@@ -768,6 +769,9 @@ function App() {
   };
 
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
+  // 詳細モーダルでのニックネーム編集。編集中フラグと入力途中の文字列を保持する
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState('');
   // 詳細モーダルで「この部位を鍛える」を押した後、対応種目が複数あるときに種目選択を表示するフラグ
   const [showTrainingPicker, setShowTrainingPicker] = useState(false);
   // 図鑑用の静的情報モーダル（筋肉の説明・Tipsなど、育成状況に依らない情報を表示する）
@@ -1250,6 +1254,22 @@ function App() {
     if (appliedGoldenCount > 0) msg += `${appliedGoldenCount}箇所の筋肉にゴールデンタイムボーナス（次回EXP1.5倍）が適用されました！\n`;
     if (appliedNormalCount > 0) msg += `${appliedNormalCount}箇所の筋肉に通常プロテインボーナス（次回EXP1.3倍）が適用されました！`;
     alert(msg.trim());
+  };
+
+  // ニックネームの上限文字数。長すぎるとカードのレイアウトが崩れるため制限する
+  const NICKNAME_MAX_LENGTH = 12;
+
+  // キャラ（部位モンスター）のニックネームを保存する。空文字ならニックネームを解除（部位名に戻す）。
+  const handleSaveNickname = (muscle: MuscleType) => {
+    const trimmed = nicknameDraft.trim().slice(0, NICKNAME_MAX_LENGTH);
+    setStats(prev => {
+      const current = prev[muscle];
+      const next = { ...current };
+      if (trimmed) next.nickname = trimmed;
+      else delete next.nickname;
+      return { ...prev, [muscle]: next };
+    });
+    setEditingNickname(false);
   };
 
   // プロテインボーナスを適用できる部位が1つでもあるか（handleDrinkProtein と同じ条件）
@@ -1799,7 +1819,7 @@ function App() {
                     <div 
                       key={muscle} 
                       className="glass-panel muscle-card"
-                      onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(muscle); }}
+                      onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(muscle); }}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                         borderColor: isTrainedToday ? '#39ff14' : undefined,
@@ -1815,11 +1835,16 @@ function App() {
 
                       <h3
                         data-tooltip-id="calendar-tooltip"
-                        data-tooltip-content={isTrainedToday ? '本日トレーニング済み！' : undefined}
-                        style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}
+                        data-tooltip-content={isTrainedToday ? '本日トレーニング済み！' : (mStats.nickname ? MUSCLE_NAMES[muscle] : undefined)}
+                        style={{ fontSize: '0.8rem', marginBottom: '0.2rem', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                       >
-                        {MUSCLE_NAMES[muscle]}
+                        {mStats.nickname || MUSCLE_NAMES[muscle]}
                       </h3>
+                      {mStats.nickname && (
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', margin: '-0.15rem 0 0.05rem', lineHeight: 1 }}>
+                          {MUSCLE_NAMES[muscle]}
+                        </span>
+                      )}
                       <p style={{ color: 'var(--border-highlight)', margin: '0', fontSize: '0.8rem' }}>Lv.{mStats.level}</p>
                       
                       <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.5rem 0', position: 'relative', width: '100%' }}>
@@ -2279,16 +2304,62 @@ function App() {
 
       {/* Muscle Detail Modal Overlay */}
       {selectedMuscleInfo && (
-        <div className="modal-overlay" onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedMuscleInfo]}</span>
-                  <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+                  {stats[selectedMuscleInfo].nickname ? (
+                    <>
+                      <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem', wordBreak: 'break-word' }}>{stats[selectedMuscleInfo].nickname}</h2>
+                      <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</span>
+                    </>
+                  ) : (
+                    <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedMuscleInfo]}</h2>
+                  )}
                 </div>
-                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Lv.{stats[selectedMuscleInfo].level}</span>
+                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.5rem' }}>Lv.{stats[selectedMuscleInfo].level}</span>
               </div>
+
+              {/* ニックネームの表示・編集。編集中はインプット、非編集時は付ける/変更ボタンを出す */}
+              {editingNickname ? (
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.6rem' }}>
+                  <input
+                    type="text"
+                    value={nicknameDraft}
+                    maxLength={NICKNAME_MAX_LENGTH}
+                    autoFocus
+                    placeholder="ニックネームを入力"
+                    onChange={e => setNicknameDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveNickname(selectedMuscleInfo); }}
+                    style={{
+                      flex: 1, minWidth: 0, padding: '0.4rem 0.6rem', fontSize: '0.9rem',
+                      background: 'rgba(0,0,0,0.35)', color: 'var(--text-primary)',
+                      border: '1px solid var(--border-highlight)', borderRadius: '6px'
+                    }}
+                  />
+                  <button
+                    onClick={() => handleSaveNickname(selectedMuscleInfo)}
+                    style={{ flexShrink: 0, padding: '0.4rem 0.7rem', fontSize: '0.85rem', fontWeight: 'bold', background: 'var(--text-accent)', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={() => setEditingNickname(false)}
+                    style={{ flexShrink: 0, padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setNicknameDraft(stats[selectedMuscleInfo].nickname || ''); setEditingNickname(true); }}
+                  style={{ marginTop: '0.5rem', padding: '0.35rem 0.7rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  ✏️ {stats[selectedMuscleInfo].nickname ? 'ニックネームを変更' : 'ニックネームを付ける'}
+                </button>
+              )}
             </div>
 
             {(() => {
@@ -2424,6 +2495,7 @@ function App() {
               const goToRecord = (exerciseId: string) => {
                 setSelectedExerciseId(exerciseId);
                 setShowTrainingPicker(false);
+                setEditingNickname(false);
                 setSelectedMuscleInfo(null);
                 setActiveTab('record');
               };
@@ -2472,7 +2544,7 @@ function App() {
               );
             })()}
 
-            <button onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(null); }} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+            <button onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
         </div>
       )}
