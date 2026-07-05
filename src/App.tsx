@@ -768,6 +768,8 @@ function App() {
   };
 
   const [selectedMuscleInfo, setSelectedMuscleInfo] = useState<MuscleType | null>(null);
+  // 詳細モーダルで「この部位を鍛える」を押した後、対応種目が複数あるときに種目選択を表示するフラグ
+  const [showTrainingPicker, setShowTrainingPicker] = useState(false);
   // 図鑑用の静的情報モーダル（筋肉の説明・Tipsなど、育成状況に依らない情報を表示する）
   const [selectedZukanMuscle, setSelectedZukanMuscle] = useState<MuscleType | null>(null);
   const [recordSuccess, setRecordSuccess] = useState(false);
@@ -1797,7 +1799,7 @@ function App() {
                     <div 
                       key={muscle} 
                       className="glass-panel muscle-card"
-                      onClick={() => setSelectedMuscleInfo(muscle)}
+                      onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(muscle); }}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                         borderColor: isTrainedToday ? '#39ff14' : undefined,
@@ -2277,7 +2279,7 @@ function App() {
 
       {/* Muscle Detail Modal Overlay */}
       {selectedMuscleInfo && (
-        <div className="modal-overlay" onClick={() => setSelectedMuscleInfo(null)}>
+        <div className="modal-overlay" onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(null); }}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
@@ -2409,29 +2411,68 @@ function App() {
               📚 筋肉の解説・おすすめ種目・Tips は<strong style={{ color: 'var(--text-accent)' }}>図鑑</strong>で確認できます
             </p>
 
-            {/* この部位を鍛える：記録タブへ遷移し、この筋肉を主対象とする種目を事前選択する。
+            {/* この部位を鍛える：記録タブへ遷移し種目を事前選択する。
+                対応する種目が複数ある場合は、まず種目の選択肢を提示する。
                 主対象の種目が無い場合は補助的に含む種目へフォールバックする。 */}
-            <button
-              onClick={() => {
-                const muscle = selectedMuscleInfo;
-                const targetExercise =
-                  EXERCISES.find(ex => ex.primaryMuscle === muscle) ??
-                  EXERCISES.find(ex => ex.targets.some(t => t.muscle === muscle));
-                if (targetExercise) setSelectedExerciseId(targetExercise.id);
+            {(() => {
+              const muscle = selectedMuscleInfo;
+              const primaryExercises = EXERCISES.filter(ex => ex.primaryMuscle === muscle);
+              const candidateExercises = primaryExercises.length > 0
+                ? primaryExercises
+                : EXERCISES.filter(ex => ex.targets.some(t => t.muscle === muscle));
+
+              const goToRecord = (exerciseId: string) => {
+                setSelectedExerciseId(exerciseId);
+                setShowTrainingPicker(false);
                 setSelectedMuscleInfo(null);
                 setActiveTab('record');
-              }}
-              style={{
-                width: '100%', padding: '1rem', marginBottom: '0.6rem',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                background: 'var(--btn-hover-bg)', color: 'var(--btn-hover-text)',
-                border: '1px solid #39ff14', fontWeight: 'bold'
-              }}
-            >
-              🏋️ この部位を鍛える
-            </button>
+              };
 
-            <button onClick={() => setSelectedMuscleInfo(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+              if (candidateExercises.length === 0) return null;
+
+              if (showTrainingPicker && candidateExercises.length > 1) {
+                return (
+                  <div style={{ marginBottom: '0.6rem' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-accent)', margin: '0 0 0.6rem', textAlign: 'center', fontWeight: 'bold' }}>
+                      🏋️ 記録する種目を選ぶ
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {candidateExercises.map(ex => (
+                        <button
+                          key={ex.id}
+                          onClick={() => goToRecord(ex.id)}
+                          style={{ width: '100%', padding: '0.8rem', textTransform: 'none', textAlign: 'center', border: '1px solid #39ff14' }}
+                        >
+                          {ex.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  onClick={() => {
+                    if (candidateExercises.length === 1) {
+                      goToRecord(candidateExercises[0].id);
+                    } else {
+                      setShowTrainingPicker(true);
+                    }
+                  }}
+                  style={{
+                    width: '100%', padding: '1rem', marginBottom: '0.6rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    background: 'var(--btn-hover-bg)', color: 'var(--btn-hover-text)',
+                    border: '1px solid #39ff14', fontWeight: 'bold'
+                  }}
+                >
+                  🏋️ この部位を鍛える
+                </button>
+              );
+            })()}
+
+            <button onClick={() => { setShowTrainingPicker(false); setSelectedMuscleInfo(null); }} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
         </div>
       )}
