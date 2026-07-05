@@ -276,6 +276,30 @@ const MUSCLE_READINGS: Record<MuscleType, string> = {
   rhomboids: 'りょうけいきん',
 };
 
+// ニックネーム登録時に提示するサンプルネーム。各部位のモチーフや役割にちなんだ人名。
+// タップするだけで入力欄に反映できる「おすすめ」候補として使う。
+const MUSCLE_NICKNAME_SAMPLES: Record<MuscleType, string> = {
+  chest: 'ゴードン',              // 力強い響きの男性名。モチーフのゴリラと頼れる胸板から
+  back: 'ウィルバー',            // 人類初飛行のライト兄弟の兄。背に広がる巨大な翼の象徴
+  shoulder: 'パトリック',        // 「高貴な守護者」の意。肩を覆う強固な防具のイメージ
+  biceps: 'ヘラクレス',          // ギリシャ神話の英雄。ヘラクレスオオカブトと最強の力こぶに
+  triceps: 'フィリップ',         // 古代ギリシャ語で「馬を愛する者」。馬蹄形とペガサスに由来
+  brachioradialis: 'ボブ',       // 大工ビーバーのイメージ。ハンマーを握って木を加工する
+  forearm_flexors: 'ガストン',   // 仏語で「ガッシリした男」。物を握り潰すほどの前腕
+  glutes: 'アトラス',            // 地球を支える巨人。人体最大のパワーを生むお尻に
+  legs: 'ジャック',              // 豪州でカンガルーのオスの愛称。跳躍力抜群のキックボクサー
+  hamstrings: 'ボルト',          // 人類最速のウサイン・ボルト。爆走とブレーキを制御するもも裏
+  gluteus_medius: 'ジャイロ',    // 傾きを感知し骨盤を水平に保つジャイロセンサーにちなむ
+  adductors: 'クララ',           // バレエ『くるみ割り人形』のヒロイン。内ももを使う美しさから
+  abs: 'アーノルド',             // ボディビルの伝説。見事なブロック状のシックスパックの象徴
+  obliques: 'マリア',            // ウエストが締まった美しき暗殺者。スズメバチのシャープなくびれ
+  iliopsoas: 'レブロン',         // 驚異的な跳躍力のNBAスター。もも上げのバネの象徴
+  transversus_abdominis: 'シェリー', // コルセットで締め上げる上品な女性。天然のコルセット
+  trapezius: 'ベネディクト',     // 修道院の創設者名。語源の「修道士のフード」に由来
+  erector_spinae: 'リュウ',      // 東洋の「龍」。背骨をまっすぐ支える龍のイメージ
+  rhomboids: 'アンジェラ',       // 「天使」の意。肩甲骨の間の「天使の羽」を動かすヒンジ
+};
+
 interface MuscleDetail {
   description: string;
   effectiveExercises: string[];
@@ -2511,33 +2535,45 @@ function App() {
 
               {/* ニックネームの表示・編集。編集中はインプット、非編集時は付ける/変更ボタンを出す */}
               {editingNickname ? (
-                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.6rem' }}>
-                  <input
-                    type="text"
-                    value={nicknameDraft}
-                    maxLength={NICKNAME_MAX_LENGTH}
-                    autoFocus
-                    placeholder="ニックネームを入力"
-                    onChange={e => setNicknameDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSaveNickname(selectedMuscleInfo); }}
-                    style={{
-                      flex: 1, minWidth: 0, padding: '0.4rem 0.6rem', fontSize: '0.9rem',
-                      background: 'rgba(0,0,0,0.35)', color: 'var(--text-primary)',
-                      border: '1px solid var(--border-highlight)', borderRadius: '6px'
-                    }}
-                  />
-                  <button
-                    onClick={() => handleSaveNickname(selectedMuscleInfo)}
-                    style={{ flexShrink: 0, padding: '0.4rem 0.7rem', fontSize: '0.85rem', fontWeight: 'bold', background: 'var(--text-accent)', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    保存
-                  </button>
-                  <button
-                    onClick={() => setEditingNickname(false)}
-                    style={{ flexShrink: 0, padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    ✕
-                  </button>
+                <div style={{ marginTop: '0.6rem' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={nicknameDraft}
+                      maxLength={NICKNAME_MAX_LENGTH}
+                      autoFocus
+                      placeholder="ニックネームを入力"
+                      onChange={e => setNicknameDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveNickname(selectedMuscleInfo); }}
+                      style={{
+                        flex: 1, minWidth: 0, padding: '0.4rem 0.6rem', fontSize: '0.9rem',
+                        background: 'rgba(0,0,0,0.35)', color: 'var(--text-primary)',
+                        border: '1px solid var(--border-highlight)', borderRadius: '6px'
+                      }}
+                    />
+                    <button
+                      onClick={() => handleSaveNickname(selectedMuscleInfo)}
+                      style={{ flexShrink: 0, padding: '0.4rem 0.7rem', fontSize: '0.85rem', fontWeight: 'bold', background: 'var(--text-accent)', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={() => setEditingNickname(false)}
+                      style={{ flexShrink: 0, padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* おすすめサンプルネーム：タップで入力欄に反映できる。部位ごとに用意 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>おすすめ：</span>
+                    <button
+                      onClick={() => setNicknameDraft(MUSCLE_NICKNAME_SAMPLES[selectedMuscleInfo])}
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+                    >
+                      {MUSCLE_NICKNAME_SAMPLES[selectedMuscleInfo]}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
