@@ -800,6 +800,9 @@ function App() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
+  // 履歴タブの「日別の記録」の表示形式（一覧 or 表）と、表セルの詳細ツールチップ
+  const [logView, setLogView] = useState<'list' | 'matrix'>('list');
+
   const [stats, setStats] = useState<AppState>(() => {
     const saved = localStorage.getItem('muscleStats');
     if (saved) {
@@ -1616,6 +1619,171 @@ function App() {
     return groups;
   }, [trainingLogs, proteinLogs]);
 
+  // 履歴タブの「表形式」用データ。縦＝キャラクター(部位)、横＝日。
+  // 各セルにその日その部位のセット数・獲得EXP・種目を持たせ、行末に日ごとのプロテイン有無を持つ。
+  const historyMatrix = useMemo(() => {
+    const keyOf = (ms: number) => {
+      const d = new Date(ms);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+    interface Cell { sets: number; exp: number; exercises: { name: string; sets: number }[]; }
+    // 日付キー → 部位キー → Cell
+    const cells: Record<string, Record<string, Cell>> = {};
+    const daySet = new Set<string>();
+    const trainedMuscles = new Set<MuscleType>();
+
+    trainingLogs.forEach(log => {
+      const dk = keyOf(log.timestamp);
+      daySet.add(dk);
+      if (!cells[dk]) cells[dk] = {};
+      const ex = EXERCISE_BY_NAME[log.exerciseName];
+      if (!ex) return;
+      const totalRatio = ex.targets.reduce((s, t) => s + t.expRatio, 0) || 1;
+      ex.targets.forEach(t => {
+        trainedMuscles.add(t.muscle);
+        if (!cells[dk][t.muscle]) cells[dk][t.muscle] = { sets: 0, exp: 0, exercises: [] };
+        const cell = cells[dk][t.muscle];
+        cell.sets += log.sets;
+        cell.exp += Math.round(log.gainedExp * t.expRatio / totalRatio);
+        const found = cell.exercises.find(e => e.name === log.exerciseName);
+        if (found) found.sets += log.sets;
+        else cell.exercises.push({ name: log.exerciseName, sets: log.sets });
+      });
+    });
+
+    // 日ごとのプロテイン摂取回数
+    const proteinByDay: Record<string, number> = {};
+    proteinLogs.forEach(ts => {
+      const dk = keyOf(ts);
+      daySet.add(dk);
+      proteinByDay[dk] = (proteinByDay[dk] || 0) + 1;
+    });
+
+    // 日付列（新しい日が左）
+    const days = Array.from(daySet)
+      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+      .map(k => {
+        const [y, mo, da] = k.split('-').map(Number);
+        return { key: k, label: `${mo}/${da}`, weekday: WEEKDAY_JP[new Date(y, mo - 1, da).getDay()], protein: proteinByDay[k] || 0 };
+      });
+
+    // 行（部位）：MUSCLE_GROUPS の並び順で、1回でも鍛えたことのある部位だけ
+    const muscles: MuscleType[] = [];
+    MUSCLE_GROUPS.forEach(g => g.muscles.forEach(m => { if (trainedMuscles.has(m)) muscles.push(m); }));
+
+    // セル強度の基準（最大セット数）
+    let maxSets = 1;
+    Object.values(cells).forEach(row => Object.values(row).forEach(c => { if (c.sets > maxSets) maxSets = c.sets; }));
+
+    return { days, muscles, cells, maxSets };
+  }, [trainingLogs, proteinLogs]);
+
+  // 履歴タブの「表形式」の描画。縦＝部位、横＝日。セルはセット数（濃淡）＋タップで詳細。
+  const renderHistoryMatrix = () => {
+    const { days, muscles, cells, maxSets } = historyMatrix;
+    const colors = ['#161b22', '#053b16', '#0b752b', '#1dd354', '#39ff14'];
+    const setsToLevel = (sets: number) => {
+      if (sets <= 0) return 0;
+      const frac = sets / maxSets;
+      if (frac >= 0.75) return 4;
+      if (frac >= 0.5) return 3;
+      if (frac >= 0.25) return 2;
+      return 1;
+    };
+
+    // 共通セルスタイル
+    const stickyLeft: React.CSSProperties = {
+      position: 'sticky', left: 0, zIndex: 2,
+      background: '#12151c', borderRight: '1px solid rgba(255,255,255,0.12)',
+    };
+    const th: React.CSSProperties = {
+      padding: '5px 4px', fontSize: '0.7rem', color: 'var(--text-secondary)',
+      fontWeight: 'normal', textAlign: 'center', whiteSpace: 'nowrap',
+    };
+    const cellSize = 34;
+
+    return (
+      <div>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0 0 0.6rem' }}>
+          数字はセット数。色が濃いほど多くこなした日。セルをタップで種目の詳細が見られます。
+        </p>
+        <div style={{ overflow: 'auto', maxHeight: '460px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px' }}>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, ...stickyLeft, zIndex: 4, top: 0, position: 'sticky', textAlign: 'left', paddingLeft: '8px', minWidth: '68px' }}>
+                  部位＼日
+                </th>
+                {days.map(d => (
+                  <th key={d.key} style={{ ...th, position: 'sticky', top: 0, zIndex: 1, background: '#12151c', minWidth: `${cellSize}px` }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{d.label}</div>
+                    <div>({d.weekday})</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {/* プロテイン行 */}
+              <tr>
+                <th style={{ ...th, ...stickyLeft, textAlign: 'left', paddingLeft: '8px', color: '#ff7bff', fontWeight: 'bold' }}>
+                  🥤 プロテイン
+                </th>
+                {days.map(d => (
+                  <td
+                    key={d.key}
+                    data-tooltip-id="matrix-tooltip"
+                    data-tooltip-content={d.protein > 0 ? `${d.label} プロテイン ${d.protein}回` : `${d.label} プロテインなし`}
+                    style={{ textAlign: 'center', padding: '4px 2px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.85rem' }}
+                  >
+                    {d.protein > 0 ? (d.protein > 1 ? `🥤×${d.protein}` : '🥤') : ''}
+                  </td>
+                ))}
+              </tr>
+              {/* 部位ごとの行 */}
+              {muscles.map(m => (
+                <tr key={m}>
+                  <th style={{ ...th, ...stickyLeft, textAlign: 'left', paddingLeft: '8px', color: 'var(--text-primary)', fontSize: '0.75rem' }}>
+                    {MUSCLE_NAMES[m]}
+                  </th>
+                  {days.map(d => {
+                    const cell = cells[d.key]?.[m];
+                    const level = cell ? setsToLevel(cell.sets) : 0;
+                    const tip = cell
+                      ? `${MUSCLE_NAMES[m]} ${d.label}｜${cell.exercises.map(e => `${e.name} ${e.sets}set`).join(' / ')}（+${cell.exp}EXP）`
+                      : `${MUSCLE_NAMES[m]} ${d.label}｜記録なし`;
+                    return (
+                      <td
+                        key={d.key}
+                        data-tooltip-id="matrix-tooltip"
+                        data-tooltip-content={tip}
+                        style={{ padding: '3px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                      >
+                        <div style={{
+                          width: `${cellSize - 8}px`, height: `${cellSize - 8}px`,
+                          margin: '0 auto', borderRadius: '5px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: colors[level],
+                          color: level >= 3 ? '#04210b' : (level > 0 ? '#d8ffe0' : 'transparent'),
+                          fontSize: '0.72rem', fontWeight: 'bold',
+                          boxShadow: level > 0 ? `0 0 3px ${colors[level]}80` : 'none',
+                        }}>
+                          {cell ? cell.sets : ''}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Tooltip id="matrix-tooltip" style={{ maxWidth: '260px', fontSize: '0.72rem', whiteSpace: 'normal', zIndex: 50 }} />
+      </div>
+    );
+  };
+
   // 分析ダッシュボードの描画
   const renderDashboard = () => {
     const a = analytics;
@@ -2430,11 +2598,33 @@ function App() {
           {/* 草カレンダー */}
           {renderCalendar()}
 
-          <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-            日別の記録
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', margin: 0 }}>日別の記録</h3>
+            {/* 一覧 / 表 の切り替え */}
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '3px' }}>
+              {([['list', '📋 一覧'], ['matrix', '📊 表']] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setLogView(v)}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '0.8rem',
+                    minHeight: 'auto',
+                    borderRadius: '8px',
+                    background: logView === v ? 'var(--text-accent)' : 'transparent',
+                    color: logView === v ? '#000' : 'var(--text-secondary)',
+                    fontWeight: logView === v ? 'bold' : 'normal',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {historyByDay.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>まだ記録がありません。トレーニングを開始しましょう！</p>
+          ) : logView === 'matrix' ? (
+            renderHistoryMatrix()
           ) : (
             <div style={{ maxHeight: '460px', overflowY: 'auto', paddingRight: '10px' }}>
               {historyByDay.map(day => (
