@@ -2646,11 +2646,24 @@ function App() {
                 if (branchInfo) {
                   items.push({ emoji: branchInfo.emoji, label: `分岐進化: ${branchInfo.label}`, color: branchInfo.color, desc: branchInfo.description });
                 }
+                // 調子（コンディション）：カードの調子ゲージと同じ絵文字・ラベル・色で対応させる。
+                // カードはトレーニング済みの部位で常にゲージを表示するので、ここでも同条件で並べる。
+                if (hasTrained) {
+                  const conditionTier = getConditionTier(mStats.condition ?? MAX_CONDITION);
+                  items.push({
+                    emoji: conditionTier.emoji,
+                    label: `調子: ${conditionTier.label}`,
+                    color: conditionTier.color,
+                    desc: conditionTier.multiplier < 1
+                      ? `育成ミスで調子が低下中。次回の獲得EXPが x${conditionTier.multiplier} になります。`
+                      : '調子は良好。獲得EXPにペナルティはありません。',
+                  });
+                }
 
                 if (items.length === 0) {
                   return (
                     <p style={{ fontSize: '0.83rem', lineHeight: 1.5, margin: 0, color: 'var(--text-secondary)' }}>
-                      {hasTrained ? '好調で、特に目立った状態はありません。' : 'まだトレーニング記録がありません。記録すると状態が表示されます。'}
+                      まだトレーニング記録がありません。記録すると状態が表示されます。
                     </p>
                   );
                 }
