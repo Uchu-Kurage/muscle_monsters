@@ -2802,8 +2802,9 @@ function App() {
       {/* 図鑑の筋肉詳細モーダル：育成状況に依らない静的な情報（説明・おすすめ種目・Tips・分岐進化タイプ）を表示する */}
       {selectedZukanMuscle && (
         <div className="modal-overlay" onClick={() => setSelectedZukanMuscle(null)}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
-            <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: 0, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+            {/* ヘッダー：スクロールしても常に見えるよう固定 */}
+            <div style={{ flexShrink: 0, padding: '1.25rem 1.5rem 0.9rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedZukanMuscle]}</span>
@@ -2813,7 +2814,10 @@ function App() {
               </div>
             </div>
 
-            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            {/* 本文：ここだけスクロールさせて、上下の見切れ・閉じるボタンの埋没を防ぐ */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem' }}>
+
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
               {(() => {
                 const zLevel = stats[selectedZukanMuscle].level;
                 const pInfo = PHASE_INFO[selectedZukanPhase];
@@ -2847,12 +2851,15 @@ function App() {
                     <div style={{ fontSize: '0.7rem', color: zBranchInfo ? zBranchInfo.color : 'var(--text-secondary)' }}>
                       {discovered ? (zBranchInfo ? `${zBranchInfo.emoji} ${zBranchInfo.label}` : pInfo.stage) : `Lv.${pInfo.unlockLevel}で解放`}
                     </div>
+                    <div style={{ marginTop: '0.6rem', display: 'inline-block', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '999px', padding: '0.2rem 0.7rem' }}>
+                      💤 超回復 {MUSCLE_RECOVERY_HOURS[selectedZukanMuscle]}時間ごと
+                    </div>
                   </>
                 );
               })()}
             </div>
 
-            <div style={{ marginBottom: '1.2rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>📖</span> 概要
               </h4>
@@ -2861,16 +2868,7 @@ function App() {
               </p>
             </div>
 
-            <div style={{ marginBottom: '1.2rem' }}>
-              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>💤</span> 超回復の目安
-              </h4>
-              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                {MUSCLE_RECOVERY_HOURS[selectedZukanMuscle]}時間ごとに超回復するタイプの筋肉です。
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '1.2rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>🏋️</span> おすすめトレーニング
               </h4>
@@ -2881,7 +2879,7 @@ function App() {
               </ul>
             </div>
 
-            <div style={{ marginBottom: '1.2rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>🧬</span> 分岐進化タイプ
               </h4>
@@ -2898,7 +2896,7 @@ function App() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
+            <div style={{ background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
               <h4 style={{ fontSize: '0.9rem', color: '#ffea00', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>💡</span> Tips
               </h4>
@@ -2907,7 +2905,12 @@ function App() {
               </p>
             </div>
 
-            <button onClick={() => setSelectedZukanMuscle(null)} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+            </div>{/* /本文スクロール領域 */}
+
+            {/* フッター：閉じるボタンは常に見えるよう固定 */}
+            <div style={{ flexShrink: 0, padding: '0.9rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <button onClick={() => setSelectedZukanMuscle(null)} style={{ width: '100%', padding: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
+            </div>
           </div>
         </div>
       )}
