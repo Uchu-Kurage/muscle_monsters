@@ -888,6 +888,8 @@ function App() {
   const [selectedZukanMuscle, setSelectedZukanMuscle] = useState<MuscleType | null>(null);
   // 図鑑モーダルで表示中の進化フェーズ（タップした形態と同じ順番の画像を表示するため）
   const [selectedZukanPhase, setSelectedZukanPhase] = useState<1 | 2 | 3>(1);
+  // 図鑑トップの「分岐進化タイプとは？」折りたたみパネルの開閉状態（全筋肉共通の解説なのでここに集約）
+  const [showBranchGuide, setShowBranchGuide] = useState(false);
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean, streakCount: number, nextStreakMilestone: { days: number; title: string } | null } | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -1756,6 +1758,42 @@ function App() {
           <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: isComplete ? '#ffea00' : 'var(--text-secondary)', fontWeight: isComplete ? 'bold' : 'normal' }}>
             {isComplete ? '🎉 図鑑コンプリート！全ての筋肉が完全体だ！' : `達成率 ${completionPct}%`}
           </p>
+        </div>
+
+        {/* 分岐進化タイプの共通解説（全筋肉共通なので図鑑トップに1ヵ所だけ集約。折りたたみ式） */}
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+          <button
+            onClick={() => setShowBranchGuide(v => !v)}
+            aria-expanded={showBranchGuide}
+            style={{
+              width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+              padding: '0.9rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              color: 'var(--text-primary)', font: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>🧬</span> 分岐進化タイプとは？
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', transform: showBranchGuide ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+          </button>
+          {showBranchGuide && (
+            <div style={{ padding: '0 1.2rem 1.1rem' }}>
+              <p style={{ fontSize: '0.8rem', lineHeight: '1.5', color: 'var(--text-secondary)', margin: '0 0 0.8rem' }}>
+                第3形態（Lv.10）に到達すると、それまでのトレーニング傾向に応じて3つの「型」のいずれかに進化します。
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {(Object.keys(BRANCH_INFO) as EvolutionBranch[]).map(b => {
+                  const info = BRANCH_INFO[b];
+                  return (
+                    <div key={b} style={{ fontSize: '0.8rem', lineHeight: '1.5' }}>
+                      <span style={{ color: info.color, fontWeight: 'bold' }}>{info.emoji} {info.label}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>：{info.description}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 部位グループごとの進化系統リスト */}
@@ -2877,23 +2915,6 @@ function App() {
                   <li key={ex}>{ex}</li>
                 ))}
               </ul>
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <h4 style={{ fontSize: '0.95rem', color: 'var(--text-accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span>🧬</span> 分岐進化タイプ
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {(Object.keys(BRANCH_INFO) as EvolutionBranch[]).map(b => {
-                  const info = BRANCH_INFO[b];
-                  return (
-                    <div key={b} style={{ fontSize: '0.8rem', lineHeight: '1.5' }}>
-                      <span style={{ color: info.color, fontWeight: 'bold' }}>{info.emoji} {info.label}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>：{info.description}</span>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
 
             <div style={{ background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
