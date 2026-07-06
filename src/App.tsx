@@ -886,6 +886,8 @@ function App() {
   const [showTrainingPicker, setShowTrainingPicker] = useState(false);
   // 図鑑用の静的情報モーダル（筋肉の説明・Tipsなど、育成状況に依らない情報を表示する）
   const [selectedZukanMuscle, setSelectedZukanMuscle] = useState<MuscleType | null>(null);
+  // 図鑑モーダルで表示中の進化フェーズ（タップした形態と同じ順番の画像を表示するため）
+  const [selectedZukanPhase, setSelectedZukanPhase] = useState<1 | 2 | 3>(1);
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean, streakCount: number, nextStreakMilestone: { days: number; title: string } | null } | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -1711,6 +1713,12 @@ function App() {
   // キャラクター図鑑の描画：全筋肉モンスターの進化系統（第1〜第3形態）を一覧表示する。
   // 未発見の形態はシルエット表示。発見状況は現在のレベルから導出する（このアプリではレベルが
   // 下がることはないため、現在レベル＝到達済みの最大フェーズとみなせる）。
+  // 図鑑モーダルを開く。タップした形態（phase）と同じ進化の順番の画像を表示する。
+  const openZukan = (muscle: MuscleType, phase: 1 | 2 | 3) => {
+    setSelectedZukanMuscle(muscle);
+    setSelectedZukanPhase(phase);
+  };
+
   const renderEncyclopedia = () => {
     const allMuscles = MUSCLE_GROUPS.flatMap(g => g.muscles);
     const totalForms = allMuscles.length * 3;
@@ -1762,12 +1770,14 @@ function App() {
                 const level = mStats.level;
                 const branch = resolveBranch(mStats, muscle, trainingLogs);
                 const discoveredCount = 1 + (level >= 5 ? 1 : 0) + (level >= 10 ? 1 : 0);
+                // 到達済みの最高フェーズ（カード全体タップ時のデフォルト表示に使う）
+                const highestPhase: 1 | 2 | 3 = level >= 10 ? 3 : level >= 5 ? 2 : 1;
 
                 return (
                   <div
                     key={muscle}
                     className="glass-panel"
-                    onClick={() => setSelectedZukanMuscle(muscle)}
+                    onClick={() => openZukan(muscle, highestPhase)}
                     style={{ padding: '0.8rem', cursor: 'pointer' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
@@ -1793,7 +1803,10 @@ function App() {
                             {idx > 0 && (
                               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', opacity: 0.5, padding: '0 2px' }}>▶</span>
                             )}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                            <div
+                              onClick={e => { e.stopPropagation(); openZukan(muscle, phase); }}
+                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                            >
                               <div style={{ height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
                                 <img
                                   src={getSpriteSrc(muscle, phase, formBranch)}
@@ -2801,12 +2814,42 @@ function App() {
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <img
-                src={getSpriteSrc(selectedZukanMuscle, 3)}
-                onError={e => handleSpriteError(e, selectedZukanMuscle)}
-                alt={MUSCLE_NAMES[selectedZukanMuscle]}
-                style={{ height: '120px', objectFit: 'contain' }}
-              />
+              {(() => {
+                const zLevel = stats[selectedZukanMuscle].level;
+                const pInfo = PHASE_INFO[selectedZukanPhase];
+                const discovered = zLevel >= pInfo.unlockLevel;
+                const zBranch = selectedZukanPhase === 3 && discovered
+                  ? resolveBranch(stats[selectedZukanMuscle], selectedZukanMuscle, trainingLogs)
+                  : undefined;
+                const zBranchInfo = zBranch ? BRANCH_INFO[zBranch] : null;
+                return (
+                  <>
+                    <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      <img
+                        src={getSpriteSrc(selectedZukanMuscle, selectedZukanPhase, zBranch)}
+                        onError={e => handleSpriteError(e, selectedZukanMuscle)}
+                        alt={discovered ? `${MUSCLE_NAMES[selectedZukanMuscle]} ${pInfo.label}` : '未発見'}
+                        style={{
+                          height: '120px', objectFit: 'contain',
+                          filter: discovered
+                            ? (zBranchInfo ? `drop-shadow(0 0 8px ${zBranchInfo.color})` : 'none')
+                            : 'brightness(0) drop-shadow(0 0 1px rgba(255,255,255,0.45))',
+                          opacity: discovered ? 1 : 0.55,
+                        }}
+                      />
+                      {!discovered && (
+                        <span style={{ position: 'absolute', fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>？</span>
+                      )}
+                    </div>
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                      {pInfo.label}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: zBranchInfo ? zBranchInfo.color : 'var(--text-secondary)' }}>
+                      {discovered ? (zBranchInfo ? `${zBranchInfo.emoji} ${zBranchInfo.label}` : pInfo.stage) : `Lv.${pInfo.unlockLevel}で解放`}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={{ marginBottom: '1.2rem' }}>
