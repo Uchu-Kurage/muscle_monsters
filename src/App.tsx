@@ -2053,15 +2053,15 @@ function App() {
                           <div 
                             data-tooltip-id="calendar-tooltip"
                             data-tooltip-content={hasGoldenBonus ? 'ゴールデンタイムボーナス適用中！(次回のEXP1.5倍)' : hasNormalBonus ? 'プロテインボーナス適用中！(次回のEXP1.3倍)' : 'プロテインボーナス対象！(筋トレから2時間以内)'}
-                            style={{ 
-                              position: 'absolute', top: '-5px', left: '5px', 
-                              background: hasGoldenBonus ? 'rgba(255, 234, 0, 0.2)' : 'rgba(0, 255, 255, 0.2)', 
-                              padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', 
-                              border: `1px solid ${hasGoldenBonus ? 'rgba(255, 234, 0, 0.5)' : 'rgba(0, 255, 255, 0.5)'}`, 
-                              animation: isProteinTarget ? 'pulse 1.5s infinite' : 'float 2s ease-in-out infinite' 
+                            style={{
+                              position: 'absolute', top: '-5px', left: '5px',
+                              background: hasGoldenBonus ? 'rgba(255, 234, 0, 0.2)' : hasNormalBonus ? 'rgba(57, 255, 20, 0.2)' : 'rgba(0, 255, 255, 0.2)',
+                              padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px',
+                              border: `1px solid ${hasGoldenBonus ? 'rgba(255, 234, 0, 0.5)' : hasNormalBonus ? 'rgba(57, 255, 20, 0.5)' : 'rgba(0, 255, 255, 0.5)'}`,
+                              animation: isProteinTarget ? 'pulse 1.5s infinite' : 'float 2s ease-in-out infinite'
                             }}
                           >
-                            {hasGoldenBonus ? '✨' : '🥤'}
+                            {(hasGoldenBonus || hasNormalBonus) ? '✨' : '🥤'}
                           </div>
                         )}
                       </div>
