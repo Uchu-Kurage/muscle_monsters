@@ -2639,7 +2639,7 @@ function App() {
                 if (hasGoldenBonus) {
                   items.push({ emoji: '✨', label: 'ゴールデンタイム', color: '#ffea00', desc: '次回の獲得EXPが x1.5 になります（トレーニングで消費）。' });
                 } else if (hasNormalBonus) {
-                  items.push({ emoji: '🥤', label: 'プロテインボーナス', color: '#00ffff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
+                  items.push({ emoji: '✨', label: 'プロテインボーナス', color: '#00ffff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
                 } else if (isProteinTarget) {
                   items.push({ emoji: '🥤', label: 'プロテイン対象', color: '#00ffff', desc: 'トレーニングから2時間以内。今プロテインを飲むと次回EXPにボーナスが付きます。' });
                 }
