@@ -825,6 +825,12 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // プロテインを飲んだ日時の履歴（履歴タブで「その日にプロテインを飲んだか」を表示するのに使う）
+  const [proteinLogs, setProteinLogs] = useState<number[]>(() => {
+    const saved = localStorage.getItem('proteinLogs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [streak, setStreak] = useState<StreakData>(() => {
     const saved = localStorage.getItem('trainingStreak');
     if (saved) {
@@ -966,6 +972,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('trainingLogs', JSON.stringify(trainingLogs));
   }, [trainingLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('proteinLogs', JSON.stringify(proteinLogs));
+  }, [proteinLogs]);
 
   useEffect(() => {
     localStorage.setItem('trainingStreak', JSON.stringify(streak));
@@ -1362,6 +1372,9 @@ function App() {
     let appliedGoldenCount = 0;
     let appliedNormalCount = 0;
 
+    // 飲んだ事実を履歴に残す（ボーナスの有無に関わらず記録）
+    setProteinLogs(prev => [Date.now(), ...prev]);
+
     setStats(prev => {
       const nextStats = { ...prev };
       Object.keys(nextStats).forEach(key => {
@@ -1524,6 +1537,84 @@ function App() {
       weekdayCount, weekdayMax, favWeekdayIdx,
     };
   }, [trainingLogs, stats]);
+
+  // 履歴タブの「日別まとめ」用データ。
+  // 日ごとに、鍛えた部位（セット数・獲得EXP）とプロテインを飲んだ回数を集計する。
+  const historyByDay = useMemo(() => {
+    const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
+    const keyOf = (ms: number) => {
+      const d = new Date(ms);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // 日付キー → プロテインを飲んだ回数
+    const proteinByDay: Record<string, number> = {};
+    proteinLogs.forEach(ts => {
+      const k = keyOf(ts);
+      proteinByDay[k] = (proteinByDay[k] || 0) + 1;
+    });
+
+    interface MuscleSummary { muscle: MuscleType; sets: number; exp: number; }
+    interface DayGroup {
+      key: string;
+      label: string;      // 表示用（例: 7/6(月)）
+      logs: TrainingLog[];
+      muscles: MuscleSummary[];
+      proteinCount: number;
+    }
+
+    const order: string[] = [];
+    const map: Record<string, { logs: TrainingLog[]; muscleAgg: Record<string, MuscleSummary> }> = {};
+
+    // trainingLogs は新しい順。順序を保ったまま日ごとにまとめる。
+    trainingLogs.forEach(log => {
+      const k = keyOf(log.timestamp);
+      if (!map[k]) {
+        map[k] = { logs: [], muscleAgg: {} };
+        order.push(k);
+      }
+      map[k].logs.push(log);
+
+      const ex = EXERCISE_BY_NAME[log.exerciseName];
+      if (ex) {
+        const totalRatio = ex.targets.reduce((s, t) => s + t.expRatio, 0) || 1;
+        ex.targets.forEach(t => {
+          if (!map[k].muscleAgg[t.muscle]) {
+            map[k].muscleAgg[t.muscle] = { muscle: t.muscle, sets: 0, exp: 0 };
+          }
+          map[k].muscleAgg[t.muscle].sets += log.sets;
+          // 記録には合計EXPしか残っていないため、EXP比率で部位ごとに按分する（概算）。
+          map[k].muscleAgg[t.muscle].exp += Math.round(log.gainedExp * t.expRatio / totalRatio);
+        });
+      }
+    });
+
+    // プロテインだけ飲んでトレーニングしていない日も表示できるように取り込む
+    Object.keys(proteinByDay).forEach(k => {
+      if (!map[k]) {
+        map[k] = { logs: [], muscleAgg: {} };
+        order.push(k);
+      }
+    });
+
+    // 新しい日付が上に来るように並べ替え
+    order.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+
+    const groups: DayGroup[] = order.map(k => {
+      const [y, mo, da] = k.split('-').map(Number);
+      const wd = WEEKDAY_JP[new Date(y, mo - 1, da).getDay()];
+      const muscles = Object.values(map[k].muscleAgg).sort((a, b) => b.sets - a.sets);
+      return {
+        key: k,
+        label: `${mo}/${da}(${wd})`,
+        logs: map[k].logs,
+        muscles,
+        proteinCount: proteinByDay[k] || 0,
+      };
+    });
+
+    return groups;
+  }, [trainingLogs, proteinLogs]);
 
   // 分析ダッシュボードの描画
   const renderDashboard = () => {
@@ -2340,45 +2431,111 @@ function App() {
           {renderCalendar()}
 
           <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-            最近の記録
+            日別の記録
           </h3>
-          {trainingLogs.length === 0 ? (
+          {historyByDay.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>まだ記録がありません。トレーニングを開始しましょう！</p>
           ) : (
-            <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
-              {trainingLogs.map(log => (
-                <div key={log.id} style={{ 
-                  background: 'rgba(255,255,255,0.05)', 
-                  padding: '1rem', 
-                  borderRadius: '8px', 
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                      {formatDate(log.timestamp)}
-                    </div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
-                      {log.exerciseName}
-                    </div>
-                    <div style={{ fontSize: '0.95rem', marginTop: '4px' }}>
-                      {log.isBodyweight ? `自重(${log.weight}kg)` : `${log.weight}kg`} × {log.reps}回 × {log.sets}セット
-                    </div>
-                  </div>
-                  <div style={{ 
-                    background: 'rgba(57, 255, 20, 0.1)', 
-                    color: 'var(--text-accent)', 
-                    padding: '8px 12px', 
-                    borderRadius: '16px',
-                    fontWeight: 'bold',
-                    fontSize: '0.9rem'
+            <div style={{ maxHeight: '460px', overflowY: 'auto', paddingRight: '10px' }}>
+              {historyByDay.map(day => (
+                <div key={day.key} style={{ marginBottom: '1.5rem' }}>
+                  {/* 日付ヘッダー ＋ プロテインの有無 */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap',
+                    marginBottom: '0.6rem',
+                    paddingBottom: '0.3rem',
+                    borderBottom: '1px solid rgba(255,255,255,0.08)',
                   }}>
-                    +{log.gainedExp} EXP
+                    <span style={{ fontSize: '1.05rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                      📅 {day.label}
+                    </span>
+                    {day.proteinCount > 0 && (
+                      <span style={{
+                        background: 'rgba(255, 0, 255, 0.12)',
+                        border: '1px solid rgba(255, 0, 255, 0.4)',
+                        color: '#ff7bff',
+                        padding: '3px 10px',
+                        borderRadius: '14px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                      }}>
+                        🥤 プロテイン{day.proteinCount > 1 ? ` ×${day.proteinCount}` : ''}
+                      </span>
+                    )}
                   </div>
+
+                  {/* その日に鍛えた部位のサマリー（セット数・獲得EXP） */}
+                  {day.muscles.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '0.7rem' }}>
+                      {day.muscles.map(m => (
+                        <span key={m.muscle} style={{
+                          display: 'inline-flex',
+                          alignItems: 'baseline',
+                          gap: '5px',
+                          background: 'rgba(0,255,255,0.08)',
+                          border: '1px solid rgba(0,255,255,0.25)',
+                          borderRadius: '14px',
+                          padding: '3px 10px',
+                          fontSize: '0.8rem',
+                        }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{MUSCLE_NAMES[m.muscle]}</span>
+                          <b style={{ color: '#00ffff' }}>{m.sets}set</b>
+                          <span style={{ color: 'var(--text-accent)', fontSize: '0.72rem' }}>+{m.exp}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 個別のトレーニングログ */}
+                  {day.logs.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem' }}>
+                      この日はトレーニング記録なし
+                    </p>
+                  ) : (
+                    day.logs.map(log => {
+                      const t = new Date(log.timestamp);
+                      const time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+                      return (
+                        <div key={log.id} style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          padding: '0.8rem 1rem',
+                          borderRadius: '8px',
+                          marginBottom: '0.6rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '0.5rem'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                              {time}
+                            </div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                              {log.exerciseName}
+                            </div>
+                            <div style={{ fontSize: '0.92rem', marginTop: '2px' }}>
+                              {log.isBodyweight ? `自重(${log.weight}kg)` : `${log.weight}kg`} × {log.reps}回 × {log.sets}セット
+                            </div>
+                          </div>
+                          <div style={{
+                            background: 'rgba(57, 255, 20, 0.1)',
+                            color: 'var(--text-accent)',
+                            padding: '8px 12px',
+                            borderRadius: '16px',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem'
+                          }}>
+                            +{log.gainedExp} EXP
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               ))}
             </div>
