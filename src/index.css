@@ -27,7 +27,6 @@
 * {
   box-sizing: border-box;
   margin: 0;
-  box-sizing: border-box;
 }
 
 html, body {
@@ -65,8 +64,15 @@ body {
 .main-content {
   flex: 1;
   overflow-y: auto;
-  padding: 2rem 2rem 80px 2rem; /* Extra padding at bottom for nav */
+  padding: 2rem 2rem 90px 2rem; /* Extra padding at bottom for nav */
   width: 100%;
+}
+
+/* スマホの狭い画面では余白を詰めてコンテンツ幅を確保する */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 1.25rem 1rem 90px 1rem;
+  }
 }
 
 h1, h2, h3 {
@@ -286,7 +292,8 @@ input:focus, select:focus {
   background: rgba(10, 10, 18, 0.95);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border-color);
-  padding: 0.8rem 0.5rem;
+  /* iPhone等のホームインジケーター領域（セーフエリア）分だけ下に余白を足す */
+  padding: 0.8rem 0.5rem calc(0.8rem + env(safe-area-inset-bottom));
   z-index: 999;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
 }
@@ -327,8 +334,24 @@ input:focus, select:focus {
   color: var(--border-highlight);
 }
 
-body {
-  padding-bottom: 80px; /* Space for bottom nav */
+/* キーボード操作時のフォーカスリング（マウスクリックでは出ない） */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--border-highlight);
+  outline-offset: 2px;
+}
+
+/* 「視差・動きを減らす」設定のユーザーには常時アニメーションを止める */
+@media (prefers-reduced-motion: reduce) {
+  .monster-image,
+  .tab-button,
+  .level-up-effect {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Result Modal */

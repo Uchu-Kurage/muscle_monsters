@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
@@ -1160,6 +1160,12 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('characters');
 
+  // タブ切り替え時にスクロール位置を先頭へ戻す（前のタブのスクロール位置が残ると迷子になるため）
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    mainContentRef.current?.scrollTo(0, 0);
+  }, [activeTab]);
+
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1649,7 +1655,7 @@ function App() {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      
+
       const exp = dataMap.get(dateStr) || 0;
       let level = 0;
       if (exp > 0) level = 1;
@@ -1659,13 +1665,15 @@ function App() {
 
       const isCurrentMonth = d.getMonth() === month;
       const isFuture = d.getTime() > today.getTime();
+      const isToday = d.getTime() === today.getTime();
 
       calendarData.push({
         date: dateStr,
         count: exp,
         level: level,
         isFuture: isFuture,
-        isCurrentMonth: isCurrentMonth
+        isCurrentMonth: isCurrentMonth,
+        isToday: isToday
       });
     }
     const colors = ['#161b22', '#053b16', '#0b752b', '#1dd354', '#39ff14'];
@@ -1676,8 +1684,9 @@ function App() {
       <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '100%' }}>
         {/* ナビゲーションヘッダー */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '280px', marginBottom: '1.5rem' }}>
-          <button 
+          <button
             onClick={() => setCurrentMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+            aria-label="前の月"
             style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: 'rgba(255,255,255,0.1)', minHeight: 'auto' }}
           >
             ◀︎
@@ -1685,8 +1694,9 @@ function App() {
           <div style={{ color: 'var(--text-accent)', fontSize: '1.1rem', fontWeight: 'bold' }}>
             {year}年 {month + 1}月
           </div>
-          <button 
+          <button
             onClick={() => setCurrentMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+            aria-label="次の月"
             style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: 'rgba(255,255,255,0.1)', minHeight: 'auto' }}
           >
             ▶︎
@@ -1713,18 +1723,23 @@ function App() {
                 const opacity = item.isCurrentMonth ? 1 : 0.15;
                 
                 return (
-                  <div 
+                  <div
                     key={item.date}
-                    data-tooltip-id="calendar-tooltip" 
-                    data-tooltip-content={`${item.date}: ${item.count} EXP獲得`} 
+                    data-tooltip-id="calendar-tooltip"
+                    data-tooltip-content={`${item.date}${item.isToday ? '（今日）' : ''}: ${item.count} EXP獲得`}
                     style={{
                       width: '22px',
                       height: '22px',
                       borderRadius: '4px',
                       backgroundColor: item.isFuture ? 'rgba(255,255,255,0.02)' : colors[item.level],
                       opacity: opacity,
-                      boxShadow: item.level > 0 && !item.isFuture && item.isCurrentMonth ? `0 0 3px ${colors[item.level]}80` : 'none',
-                      border: item.isFuture ? '1px dashed rgba(255,255,255,0.1)' : 'none'
+                      boxShadow: item.isToday
+                        ? '0 0 6px rgba(0, 255, 255, 0.7)'
+                        : item.level > 0 && !item.isFuture && item.isCurrentMonth ? `0 0 3px ${colors[item.level]}80` : 'none',
+                      // 今日のマスはシアン枠で強調して現在位置をわかりやすくする
+                      border: item.isToday
+                        ? '1px solid var(--border-highlight)'
+                        : item.isFuture ? '1px dashed rgba(255,255,255,0.1)' : 'none'
                     }}
                   />
                 );
@@ -2514,14 +2529,14 @@ function App() {
 
   return (
     <>
-    <div className="main-content">
+    <div className="main-content" ref={mainContentRef}>
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
         {selectedTitle && (
           <div style={{ color: '#ffea00', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '0.5rem', animation: 'float 3s ease-in-out infinite' }}>
             【{selectedTitle}】
           </div>
         )}
-        <h1 style={{ color: 'var(--text-primary)', fontSize: '2.5rem', margin: '0' }}>マッスル<br />モンスターズ</h1>
+        <h1 style={{ color: 'var(--text-primary)', fontSize: 'clamp(1.7rem, 8vw, 2.5rem)', margin: '0' }}>マッスル<br />モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
         {playerName && (
           <button
@@ -2810,11 +2825,12 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>体重設定 (自重用):</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                type="number" 
-                min="1" 
-                value={bodyWeight} 
-                onChange={e => setBodyWeight(Number(e.target.value) || 60)} 
+              <input
+                type="number"
+                min="1"
+                inputMode="decimal"
+                value={bodyWeight}
+                onChange={e => setBodyWeight(Number(e.target.value) || 60)}
                 style={{ width: '70px', padding: '5px' }}
               />
               <span>kg</span>
@@ -2919,18 +2935,18 @@ function App() {
                 {isBodyweight ? (
                   <input type="text" value={`自重(${bodyWeight})`} disabled style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', padding: '1rem 0' }} />
                 ) : (
-                  <input type="number" min="0" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                  <input type="number" min="0" inputMode="decimal" value={weight} onChange={e => setWeight(Number(e.target.value) || '')} placeholder="0" required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>回数/秒数</label>
-                <input type="number" min="1" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                <input type="number" min="1" inputMode="numeric" value={reps} onChange={e => setReps(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.9rem', textAlign: 'center' }}>セット数</label>
-                <input type="number" min="1" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
+                <input type="number" min="1" inputMode="numeric" value={sets} onChange={e => setSets(Number(e.target.value) || '')} required style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.2rem', padding: '1rem 0' }} />
               </div>
             </div>
 
@@ -3288,7 +3304,7 @@ function App() {
       {/* Muscle Detail Modal Overlay */}
       {selectedMuscleInfo && (
         <div className="modal-overlay" onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -3651,26 +3667,23 @@ function App() {
 
     {/* Navigation Tabs - Moved outside main wrapper to prevent z-index / fixed positioning issues */}
     <div className="tab-container">
-      <button className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>
-        <span className="tab-icon">👾</span>
-        <span className="tab-label">マスモン</span>
-      </button>
-      <button className={`tab-button ${activeTab === 'record' ? 'active' : ''}`} onClick={() => setActiveTab('record')}>
-        <span className="tab-icon">🏋️</span>
-        <span className="tab-label">記録</span>
-      </button>
-      <button className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
-        <span className="tab-icon">📖</span>
-        <span className="tab-label">履歴</span>
-      </button>
-      <button className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>
-        <span className="tab-icon">🏆</span>
-        <span className="tab-label">実績</span>
-      </button>
-      <button className={`tab-button ${activeTab === 'encyclopedia' ? 'active' : ''}`} onClick={() => setActiveTab('encyclopedia')}>
-        <span className="tab-icon">📚</span>
-        <span className="tab-label">図鑑</span>
-      </button>
+      {([
+        ['characters', '👾', 'マスモン'],
+        ['record', '🏋️', '記録'],
+        ['logs', '📖', '履歴'],
+        ['achievements', '🏆', '実績'],
+        ['encyclopedia', '📚', '図鑑'],
+      ] as const).map(([tab, icon, label]) => (
+        <button
+          key={tab}
+          className={`tab-button ${activeTab === tab ? 'active' : ''}`}
+          onClick={() => setActiveTab(tab)}
+          aria-current={activeTab === tab ? 'page' : undefined}
+        >
+          <span className="tab-icon" aria-hidden="true">{icon}</span>
+          <span className="tab-label">{label}</span>
+        </button>
+      ))}
     </div>
     </>
   );
