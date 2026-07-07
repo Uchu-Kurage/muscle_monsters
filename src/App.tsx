@@ -2739,7 +2739,7 @@ function App() {
                         {isSuperCompReady && !isTrainedToday && (
                           <div
                             data-tooltip-id="calendar-tooltip"
-                            data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}`}
+                            data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate((mStats.lastTrainedAt || 0) + requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR)}まで）`}
                             style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(57, 255, 20, 0.2)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(57, 255, 20, 0.5)', animation: 'pulse 1.5s infinite' }}
                           >
                             ⚡
@@ -3422,7 +3422,11 @@ function App() {
                   items.push({ emoji: '💤', label: '休息中', color: 'orange', desc: `超回復まであと約${remainingHours}時間。今鍛えると疲労で獲得EXPが半減します。` });
                 }
                 if (isSuperCompReady && !isTrainedToday) {
-                  items.push({ emoji: '⚡', label: '超回復ピーク（狙い目）', color: '#39ff14', desc: `回復が完了した狙い目の状態。今鍛えると獲得EXPが x${SUPERCOMP_BONUS} になります。` });
+                  // 超回復ピークは 回復完了 ～ 回復時間×サボり係数 までの窓。
+                  // この窓を過ぎるとサボり圏に入りボーナスが消えるので、期限を明示する。
+                  const superCompEndsAt = mStats.lastTrainedAt! + requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR;
+                  const remainingHours = Math.max(1, Math.ceil((superCompEndsAt - Date.now()) / (60 * 60 * 1000)));
+                  items.push({ emoji: '⚡', label: '超回復ピーク（狙い目）', color: '#39ff14', desc: `回復が完了した狙い目の状態。今鍛えると獲得EXPが x${SUPERCOMP_BONUS} になります。${formatDate(superCompEndsAt)}まで（あと約${remainingHours}時間）がボーナス期限。過ぎるとサボり扱いになります。` });
                 }
                 if (hasGoldenBonus) {
                   items.push({ emoji: '✨', label: 'ゴールデンタイム', color: '#ffea00', desc: '次回の獲得EXPが x1.5 になります（トレーニングで消費）。' });
