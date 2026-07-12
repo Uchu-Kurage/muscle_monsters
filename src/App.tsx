@@ -1223,7 +1223,6 @@ function App() {
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
-  const [conditionDropAlert, setConditionDropAlert] = useState<string[]>([]);
 
   // 時間経過に応じて表示を更新するためのティック（プロテインボタンの出現判定など）
   const [now, setNow] = useState<number>(() => Date.now());
@@ -1291,7 +1290,6 @@ function App() {
     let hasChanges = false;
     const newStats = { ...stats };
     const droppedMuscles: string[] = [];
-    const conditionDrops: string[] = [];
 
     (Object.keys(newStats) as MuscleType[]).forEach(muscle => {
       const mStat = newStats[muscle];
@@ -1318,7 +1316,6 @@ function App() {
             const next = Math.max(0, cur - lost);
             if (next !== cur) {
               mStat.condition = next;
-              conditionDrops.push(MUSCLE_NAMES[muscle]);
             }
             mStat.conditionUpdatedAt = now;
             hasChanges = true;
@@ -1330,7 +1327,6 @@ function App() {
     if (hasChanges) {
       setStats(newStats);
       if (droppedMuscles.length > 0) setDetrainAlert(droppedMuscles);
-      if (conditionDrops.length > 0) setConditionDropAlert(conditionDrops);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2585,15 +2581,6 @@ function App() {
               </div>
             );
           })()}
-
-          {conditionDropAlert.length > 0 && (
-            <div className="glass-panel" style={{ borderColor: '#ff9f1c', backgroundColor: 'rgba(255, 159, 28, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
-              <h3 style={{ color: '#ff9f1c' }}>😓 コンディション低下</h3>
-              <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>トレーニングをサボったため、筋肉の調子が落ちました。回復するまで次回の獲得EXPが減ってしまいます…</p>
-              <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{conditionDropAlert.join('、')}</p>
-              <button onClick={() => setConditionDropAlert([])} style={{ borderColor: '#ff9f1c', color: '#ff9f1c', marginTop: '0.5rem', padding: '0.5rem 1rem' }}>確認した</button>
-            </div>
-          )}
 
           {overworkAlerts.length > 0 && (
             <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
