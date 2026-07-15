@@ -166,6 +166,14 @@ input:focus, select:focus {
   100% { transform: translate(-50%, -20px); opacity: 0; }
 }
 
+/* トレーニング実施日にカレンダーへスタンプを押す演出（押印したての跳ね） */
+@keyframes stampPop {
+  0%   { transform: rotate(var(--stamp-rot, 0deg)) scale(2.4); opacity: 0; }
+  50%  { transform: rotate(var(--stamp-rot, 0deg)) scale(0.85); opacity: 1; }
+  75%  { transform: rotate(var(--stamp-rot, 0deg)) scale(1.15); }
+  100% { transform: rotate(var(--stamp-rot, 0deg)) scale(1); opacity: 1; }
+}
+
 /* キャラのおしゃべり吹き出し（キャラクター一覧） */
 @keyframes bubbleIn {
   from { transform: translateY(6px) scale(0.92); opacity: 0; }
