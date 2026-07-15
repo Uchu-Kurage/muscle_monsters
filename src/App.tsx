@@ -1717,13 +1717,20 @@ function App() {
               {Array.from({ length: 7 }).map((_, dayIndex) => {
                 const item = calendarData[weekIndex * 7 + dayIndex];
                 const opacity = item.isCurrentMonth ? 1 : 0.15;
-                
+                // トレーニングした日にはスタンプ（💪）を押す。手押しっぽく見えるよう日付から傾きを決定
+                const isStamped = item.level > 0 && !item.isFuture;
+                const stampRotate = (Number(item.date.slice(-2)) % 5) * 7 - 14; // -14〜+14度
+
                 return (
                   <div
                     key={item.date}
                     data-tooltip-id="calendar-tooltip"
-                    data-tooltip-content={`${item.date}${item.isToday ? '（今日）' : ''}: ${item.count} EXP獲得`}
+                    data-tooltip-content={`${item.date}${item.isToday ? '（今日）' : ''}: ${item.count} EXP獲得${isStamped ? '（スタンプ済 💪）' : ''}`}
                     style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       width: '22px',
                       height: '22px',
                       borderRadius: '4px',
@@ -1737,12 +1744,37 @@ function App() {
                         ? '1px solid var(--border-highlight)'
                         : item.isFuture ? '1px dashed rgba(255,255,255,0.1)' : 'none'
                     }}
-                  />
+                  >
+                    {isStamped && (
+                      <span
+                        style={{
+                          ['--stamp-rot' as string]: `${stampRotate}deg`,
+                          fontSize: '14px',
+                          lineHeight: 1,
+                          transform: `rotate(${stampRotate}deg)`,
+                          // 押印したてのスタンプ感を出すためのポップアニメーション（今日のみ）
+                          animation: item.isToday ? 'stampPop 0.4s ease-out' : 'none',
+                          filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.6))',
+                          userSelect: 'none',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        💪
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>
           ))}
         </div>
+
+        {/* 凡例：スタンプ＝トレーニング実施日 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '1rem' }}>💪</span>
+          <span>トレーニングを実施した日はスタンプが押されます</span>
+        </div>
+
         <Tooltip id="calendar-tooltip" />
       </div>
     );
