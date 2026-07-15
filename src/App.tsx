@@ -1274,6 +1274,8 @@ function App() {
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [achievementAlert, setAchievementAlert] = useState<Achievement | null>(null);
+  // その日最初のトレーニングを記録したときに「カレンダーにスタンプを押す」演出を出す。表示する日付ラベルを保持。
+  const [dailyStampAlert, setDailyStampAlert] = useState<string | null>(null);
 
   // プレイヤー登録：登録した名前をニックネーム付きキャラが呼んでくれる。
   const [playerName, setPlayerName] = useState<string>(() => localStorage.getItem('playerName') || '');
@@ -1409,6 +1411,13 @@ function App() {
     
     if (r === 0 || s === 0) return;
 
+    // 今日まだ1件も記録していなければ「その日最初のトレーニング」＝スタンプを押す演出を出す
+    const now = new Date();
+    const todayDateStr = now.toDateString();
+    const isFirstTrainingOfDay = !trainingLogs.some(
+      l => new Date(l.timestamp).toDateString() === todayDateStr
+    );
+
     // 1セットあたり 30 EXP を基本とする
     let baseGainedExp = s * 30;
 
@@ -1421,7 +1430,7 @@ function App() {
 
     // 連続トレーニング日数（ストリーク）を更新する。報酬はEXPではなく称号なので、
     // ここで baseGainedExp には手を加えない（部位EXPの負荷連動思想を守る）。
-    const todayStr = new Date().toDateString();
+    const todayStr = todayDateStr;
     let nextStreak: StreakData = streak;
     if (streak.lastDate !== todayStr) {
       const gap = streak.lastDate ? dayDiff(streak.lastDate, todayStr) : Infinity;
@@ -1578,6 +1587,12 @@ function App() {
     };
 
     setTrainingLogs(prev => [newLog, ...prev]);
+
+    // その日最初の記録なら、カレンダーへスタンプを押す演出を再生（自動で消える）
+    if (isFirstTrainingOfDay) {
+      setDailyStampAlert(`${now.getMonth() + 1}/${now.getDate()}`);
+      setTimeout(() => setDailyStampAlert(null), 1600);
+    }
 
     setUnlockedAchievements(prevUnlocked => {
       const newlyUnlocked: Achievement[] = [];
@@ -3228,6 +3243,83 @@ function App() {
       )}
 
       {/* Result Modal Overlay */}
+      {/* その日最初のトレーニング時に、カレンダーへスタンプがペタッと押される演出 */}
+      {dailyStampAlert && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            background: 'radial-gradient(circle, rgba(0,0,0,0.35), rgba(0,0,0,0.72))',
+            animation: 'stampOverlayFade 1.6s ease-out forwards',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+            {/* スタンプを押す対象＝その日のカレンダーマス（拡大表示） */}
+            <div
+              style={{
+                position: 'relative',
+                width: '108px',
+                height: '108px',
+                borderRadius: '14px',
+                background: '#0b752b',
+                border: '2px solid var(--border-highlight)',
+                boxShadow: '0 0 18px rgba(57,255,20,0.55)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* 押印時の衝撃波リング */}
+              <div
+                style={{
+                  position: 'absolute',
+                  width: '104px',
+                  height: '104px',
+                  borderRadius: '14px',
+                  border: '3px solid #39ff14',
+                  animation: 'stampShockwave 1.3s ease-out',
+                }}
+              />
+              {/* 日付ラベル */}
+              <span style={{ position: 'absolute', top: '6px', left: '8px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)', fontWeight: 'bold' }}>
+                {dailyStampAlert}
+              </span>
+              {/* 振り下ろされて押されるスタンプ本体 */}
+              <span
+                style={{
+                  fontSize: '58px',
+                  lineHeight: 1,
+                  animation: 'stampSlamIn 0.7s cubic-bezier(0.18, 0.9, 0.32, 1.28) forwards',
+                  filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.6))',
+                }}
+              >
+                💪
+              </span>
+            </div>
+            {/* 「ペタッ！」の効果音的なテキスト */}
+            <div
+              style={{
+                color: '#39ff14',
+                fontWeight: 'bold',
+                fontSize: '1.5rem',
+                textShadow: '0 0 8px rgba(57,255,20,0.7)',
+                animation: 'stampLabelPop 1s ease-out',
+              }}
+            >
+              ペタッ！
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animation: 'stampLabelPop 1s ease-out' }}>
+              本日のトレーニングを記録しました
+            </div>
+          </div>
+        </div>
+      )}
+
       {recordResult && (
         <div className="modal-overlay" style={{ zIndex: 1001 }}>
           <div className="modal-content result-modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out' }}>

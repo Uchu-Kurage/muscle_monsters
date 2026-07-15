@@ -174,6 +174,35 @@ input:focus, select:focus {
   100% { transform: rotate(var(--stamp-rot, 0deg)) scale(1); opacity: 1; }
 }
 
+/* その日最初のトレーニング記録時：スタンプが振り下ろされて押される演出 */
+@keyframes stampSlamIn {
+  0%   { transform: translateY(-70px) scale(2.6) rotate(-22deg); opacity: 0; }
+  45%  { transform: translateY(-70px) scale(2.6) rotate(-22deg); opacity: 0; }
+  70%  { transform: translateY(0) scale(0.82) rotate(-5deg); opacity: 1; }
+  82%  { transform: translateY(-6px) scale(1.1) rotate(-8deg); }
+  100% { transform: translateY(0) scale(1) rotate(-6deg); opacity: 1; }
+}
+
+/* 押印の瞬間に広がる衝撃波リング */
+@keyframes stampShockwave {
+  0%, 60%  { transform: scale(0.35); opacity: 0; }
+  66%      { opacity: 0.7; }
+  100%     { transform: scale(1.9); opacity: 0; }
+}
+
+/* 「ペタッ！」ラベルが押印に合わせて跳ねて出る */
+@keyframes stampLabelPop {
+  0%, 62% { transform: scale(0); opacity: 0; }
+  76%     { transform: scale(1.25); opacity: 1; }
+  100%    { transform: scale(1); opacity: 1; }
+}
+
+/* 演出全体を最後にフェードアウトさせる */
+@keyframes stampOverlayFade {
+  0%, 78% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
 /* キャラのおしゃべり吹き出し（キャラクター一覧） */
 @keyframes bubbleIn {
   from { transform: translateY(6px) scale(0.92); opacity: 0; }
