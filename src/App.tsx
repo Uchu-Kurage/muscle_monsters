@@ -22,6 +22,7 @@ interface MuscleStats {
   evolutionBranch?: EvolutionBranch; // 第3形態到達時に一度だけ確定する分岐進化の型
   condition?: number;         // コンディション（調子）0-100。中立50スタート。上でボーナス/下でペナルティ
   conditionUpdatedAt?: number; // サボりによるコンディション減衰を最後に精算した時刻
+  detrainedAt?: number;       // デトレーニング（放置によるEXP半減）を最後に精算した時刻。再発防止用でlastTrainedAtとは別管理
 }
 
 // 全体で保持する連続トレーニング日数（ストリーク）
@@ -1293,13 +1294,21 @@ function App() {
 
     (Object.keys(newStats) as MuscleType[]).forEach(muscle => {
       const mStat = newStats[muscle];
-      if (mStat.lastTrainedAt && (now - mStat.lastTrainedAt > DETRAIN_THRESHOLD_MS)) {
-        if (mStat.exp > 0) {
-          mStat.exp = Math.floor(mStat.exp / 2);
+      // デトレ判定の基準は「実トレ時刻」と「前回デトレ精算時刻」の新しい方。
+      // lastTrainedAt を書き換えないことで、半減後に「本日トレーニング済み」等の
+      // 表示・回復・超回復・コンディション判定が壊れないようにする。
+      if (mStat.lastTrainedAt) {
+        const detrainAnchor = Math.max(mStat.lastTrainedAt, mStat.detrainedAt ?? 0);
+        if (now - detrainAnchor > DETRAIN_THRESHOLD_MS) {
+          if (mStat.exp > 0) {
+            mStat.exp = Math.floor(mStat.exp / 2);
+            hasChanges = true;
+            droppedMuscles.push(MUSCLE_NAMES[muscle]);
+          }
+          // 次回起動での二重半減を防ぐため、再発防止用タイマーだけを進める。
+          mStat.detrainedAt = now;
           hasChanges = true;
-          droppedMuscles.push(MUSCLE_NAMES[muscle]);
         }
-        mStat.lastTrainedAt = now;
       }
 
       // サボりによるコンディション減衰：回復時間×GRACE を過ぎた放置分を精算する。
