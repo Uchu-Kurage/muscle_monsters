@@ -449,6 +449,75 @@ const CONDITION_SABORI_DECAY_PER_DAY = 8; // サボり1日あたりのコンデ�
 // 時間軸: 早すぎ(超回復前)=過剰トレで半減 / ちょうど良い=超回復ピークで加算 / 遅すぎ=サボりで調子ダウン。
 const SUPERCOMP_BONUS = 1.2;
 
+// ===== 鍛えどき通知（サーバー不要のプッシュ）=====
+// Service Worker(public/sw.js) が localStorage を読めないため、SWが読めるIndexedDBに
+// 各部位の最終トレ時刻と回復時間のスナップショットを書き出しておく。SW側が定期的に起きて
+// 「超回復して鍛えどきになった部位」を検知し、端末を閉じている間もローカル通知を出す。
+const NOTIFY_DB_NAME = 'mm_notify';
+const NOTIFY_DB_VERSION = 1;
+const PERIODIC_SYNC_TAG = 'mm-recovery-check';
+const PERIODIC_SYNC_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 実際の起床間隔はブラウザが決める（下限のみ指定）
+
+// SW(sw.js)側 openDb と同じスキーマでIndexedDBを開く（onupgradeneeded の内容は両者で一致させること）。
+function openNotifyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(NOTIFY_DB_NAME, NOTIFY_DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+      if (!db.objectStoreNames.contains('notified')) db.createObjectStore('notified');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// 現在のstatsから、SWが鍛えどき判定に必要な最小限のスナップショットをIndexedDBへ書き出す。
+// 通知は補助機能なので、失敗しても本体の動作には影響させない（例外は握りつぶす）。
+async function saveNotifySnapshot(stats: AppState, playerName: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const muscles = (Object.keys(stats) as MuscleType[])
+    .filter(m => stats[m].lastTrainedAt)
+    .map(m => ({
+      id: m,
+      name: stats[m].nickname || MUSCLE_NAMES[m],
+      lastTrainedAt: stats[m].lastTrainedAt as number,
+      recoveryMs: MUSCLE_RECOVERY_HOURS[m] * 60 * 60 * 1000,
+    }));
+  try {
+    const db = await openNotifyDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('state', 'readwrite');
+      tx.objectStore('state').put({ updatedAt: Date.now(), playerName, muscles }, 'current');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    /* 通知は補助機能。失敗は無視 */
+  }
+}
+
+// Periodic Background Sync を登録する（対応ブラウザのみ。非対応環境では何もしない）。
+// 権限が付与されていれば、端末が本アプリを閉じている間もSWが定期的に鍛えどきをチェックできる。
+async function registerPeriodicSync(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const withSync = reg as unknown as {
+      periodicSync?: { register: (tag: string, opts: { minInterval: number }) => Promise<void> };
+    };
+    if (!withSync.periodicSync || !navigator.permissions) return;
+    const status = await navigator.permissions.query({
+      name: 'periodic-background-sync',
+    } as unknown as PermissionDescriptor);
+    if (status.state === 'granted') {
+      await withSync.periodicSync.register(PERIODIC_SYNC_TAG, { minInterval: PERIODIC_SYNC_MIN_INTERVAL_MS });
+    }
+  } catch {
+    /* Periodic Background Sync 非対応（iOS/Safari・Firefox等）でも前景通知は動くので無視 */
+  }
+}
+
 // コンディションの段階。上から順に評価し、condition >= min の最初の段階を採用する。
 // 中立点 50 を含む「普通」帯を x1.0 とし、上振れでボーナス（>1）、下振れでペナルティ（<1）。
 const CONDITION_TIERS = [
@@ -1285,6 +1354,58 @@ function App() {
   // キャラのおしゃべり（吹き出し）：ニックネーム付きキャラの中から1体が交代でしゃべる。
   const [talkingMuscle, setTalkingMuscle] = useState<MuscleType | null>(null);
   const [talkingLine, setTalkingLine] = useState('');
+
+  // 鍛えどき通知（サーバー不要のプッシュ）：この端末で通知が使えるか＆許可状態を保持する。
+  const notifySupported = typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator;
+  const [notifyPerm, setNotifyPerm] = useState<NotificationPermission>(
+    () => (typeof Notification !== 'undefined' ? Notification.permission : 'default'),
+  );
+
+  // Service Worker を登録する。既に通知許可済みなら Periodic Background Sync も張り直す。
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`)
+      .then(() => {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          return registerPeriodicSync();
+        }
+      })
+      .catch(() => { /* SW登録失敗（非対応ブラウザ等）は通知機能のみ無効。本体は動く */ });
+  }, []);
+
+  // 通知オン後は、statsやプレイヤー名が変わるたびにSW用スナップショットを最新化する。
+  useEffect(() => {
+    if (notifyPerm !== 'granted') return;
+    saveNotifySnapshot(stats, playerName);
+  }, [stats, playerName, notifyPerm]);
+
+  // 前景チェックの補助：アプリをバックグラウンドに回したときや一定間隔で、SWに鍛えどきチェックを促す。
+  // （SW側は表示中のウィンドウがあるとOS通知を抑制するので、開いている最中に鳴ることはない）
+  useEffect(() => {
+    if (notifyPerm !== 'granted' || !('serviceWorker' in navigator)) return;
+    const ping = () => {
+      navigator.serviceWorker.ready.then(reg => reg.active?.postMessage({ type: 'check' })).catch(() => {});
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') ping(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = window.setInterval(ping, 20 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(timer);
+    };
+  }, [notifyPerm]);
+
+  // 「鍛えどき通知をオンにする」ボタンのハンドラ。許可を取り、スナップショット書き出しと定期同期登録を行う。
+  const handleEnableNotifications = async () => {
+    if (typeof Notification === 'undefined') return;
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    setNotifyPerm(perm);
+    if (perm !== 'granted') return;
+    await saveNotifySnapshot(stats, playerName);
+    await registerPeriodicSync();
+  };
 
   useEffect(() => {
     const now = Date.now();
@@ -2622,6 +2743,37 @@ function App() {
               </div>
             );
           })()}
+
+          {/* 鍛えどき通知（サーバー不要のプッシュ）のオン/オフ案内 */}
+          {notifySupported && (
+            <div className="glass-panel" style={{ textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
+              {notifyPerm === 'granted' ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  🔔 鍛えどき通知：<span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>オン</span>
+                  <br />
+                  <span style={{ fontSize: '0.7rem' }}>
+                    部位が超回復（鍛えどき）になったらお知らせします。端末を閉じている間の通知はChrome/Android等の対応環境のみです。
+                  </span>
+                </p>
+              ) : notifyPerm === 'denied' ? (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  🔕 通知はブロック中です。ブラウザのサイト設定から通知を許可すると、鍛えどきをお知らせできます。
+                </p>
+              ) : (
+                <>
+                  <button
+                    onClick={handleEnableNotifications}
+                    style={{ padding: '0.6rem 1.2rem', borderColor: 'var(--text-accent)', color: 'var(--text-accent)', fontWeight: 'bold' }}
+                  >
+                    🔔 鍛えどき通知をオンにする
+                  </button>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0' }}>
+                    部位が超回復して「狙い目」になったら通知でお知らせします（EXPボーナスのチャンス）
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           {overworkAlerts.length > 0 && (
             <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
