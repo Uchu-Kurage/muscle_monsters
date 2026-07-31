@@ -306,6 +306,36 @@ input:focus, select:focus {
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
 }
 
+/* ===== バトル画面 ===== */
+/* HPバー：味方・敵で共通の枠。中身の幅で残量を表現する。 */
+.battle-hp-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.battle-hp-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* バトルログ：直近の展開を流す。等幅・小さめでレトロゲーム風。 */
+.battle-log {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
 .tab-button {
   font-family: var(--font-pixel);
   background: transparent;

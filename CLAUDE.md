@@ -183,6 +183,39 @@ Condition moves via:
   `streak.best`). Missing a day resets it (`getEffectiveStreak`); the banner
   shows the next milestone title (`getNextStreakMilestone`).
 
+### Battle (バトル) system
+
+A turn-based battle mode where the raised monsters fight **サボり魔 (slacker)
+bosses**. Like the streak system, it **grants no EXP** — the philosophy is that
+battle strength is a *readout of training*, not a second growth axis. Rewards
+are **defeat titles** (achievements) and a kill count only. Self-contained in
+`App.tsx` (`BattleView` component + module-level helpers) and one new
+`localStorage` key (`battleState`).
+
+- **Squad**: pick exactly `BATTLE_SQUAD_SIZE` (3) muscles to deploy.
+- **Stat derivation** (`buildRosterEntry`, all pure/deterministic from the
+  save): `HP/ATK/DEF/SPD` scale off `level`; the `evolutionBranch` gives its
+  role bonus (power→ATK, endurance→HP/DEF, balanced→SPD); **鍛えどき
+  (super-comp) → ATK×1.15 buff**, **overwork → DEF×0.8 debuff**; the
+  `condition` tier multiplier (reused `CONDITION_TIERS`) is applied to damage
+  dealt. Sprites reuse `getSpriteSrc` / `handleSpriteError`.
+- **Turn resolution** (`BattleView.resolveTurn`): the player picks a command
+  (`attack` / `defend` / `protein`) per living, non-disabled ally, then all
+  actors resolve in SPD order. `computeBattleDamage(effAtk, def)`. Protein is a
+  heal item whose stock = protein drinks in the last 24 h (max 3, from
+  `proteinLogs`).
+- **Boss gimmick**: 三日坊主デビル's 「サボり誘惑」 disables one ally for a turn;
+  success chance is reduced by `getBattleStreakResist` (from the *active*
+  effective streak — keeping a streak makes the squad resist temptation).
+- **Bosses** live in `BATTLE_BOSSES`; each has an `achievementId` unlocked
+  directly on victory (its `ACHIEVEMENTS` entry uses `check: () => false` so the
+  per-record auto-check never touches it). The battle victory/defeat is shown
+  inside the battle panel (not via the global `achievementAlert` modal) to keep
+  it self-contained.
+- **Navigation**: the battle tab drives a small screen state
+  (`battleScreen`: `menu` → `squad` → `fight`); `battleKey` is bumped each
+  fight so `BattleView` remounts fresh.
+
 ### Player name, nicknames & character dialogue
 
 - On first launch (no `playerName` in `localStorage`) a registration modal
@@ -218,6 +251,7 @@ State is persisted to `localStorage` via `useEffect` hooks. Keys:
 - `selectedTitle` — equipped title string
 - `playerName` — registered player name
 - `trainingStreak` — `StreakData` (`current` / `best` / `lastDate`)
+- `battleState` — `BattleState` (`squad` / `defeatedBosses` / `wins`)
 
 On load, saved stats are merged over `INITIAL_STATE` so newly added muscles get
 defaults. **When you add a field to a persisted structure, handle old saved data
@@ -226,7 +260,7 @@ do) — real users have existing `localStorage`.
 
 ## UI structure
 
-Five tabs (`TabType`), switched by the fixed bottom `.tab-container`:
+Six tabs (`TabType`), switched by the fixed bottom `.tab-container`:
 
 - `characters` (モンスター) — streak banner, speech bubble from a nicknamed
   monster, muscle cards grouped by body region (each with a condition badge),
@@ -247,6 +281,9 @@ Five tabs (`TabType`), switched by the fixed bottom `.tab-container`:
   levels, a collapsible branch-evolution guide (`BRANCH_INFO`), and a static
   info modal (`selectedZukanMuscle` / `selectedZukanPhase`) showing the tapped
   form's sprite and the muscle's `MUSCLE_DETAILS`
+- `battle` (バトル) — `renderBattle`: boss selection (`BATTLE_BOSSES`) → squad
+  編成 (pick 3, showing level/branch/condition/鍛えどき) → the `BattleView`
+  turn-based fight. See the Battle system section above
 
 Modals (player registration / result / achievement / evolution / muscle detail
 / encyclopedia) are rendered conditionally with a priority order enforced by

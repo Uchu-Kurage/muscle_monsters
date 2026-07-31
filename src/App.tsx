@@ -72,7 +72,7 @@ interface TrainingLog {
   gainedExp: number;
 }
 
-type TabType = 'characters' | 'record' | 'logs' | 'achievements' | 'encyclopedia';
+type TabType = 'characters' | 'record' | 'logs' | 'achievements' | 'encyclopedia' | 'battle';
 
 interface Achievement {
   id: string;
@@ -101,6 +101,8 @@ const ACHIEVEMENTS: Achievement[] = [
     description: `${m.days}日連続でトレーニングする`,
     check: (_s: AppState, _l: TrainingLog[], streak: StreakData) => streak.best >= m.days,
   })),
+  // バトルの討伐称号。check は常に false（バトル勝利時に直接付与するため、記録セット時の自動判定では解除されない）。
+  { id: 'boss_sanchi_bozu', name: '悪癖を断つ者', description: 'バトルで三日坊主デビルを討伐する', check: () => false },
   { id: 'chest_master', name: '大胸筋マスター', description: '大胸筋のレベルを10にする', check: (stats) => stats.chest.level >= 10 },
   { id: 'back_master', name: '広背筋マスター', description: '広背筋のレベルを10にする', check: (stats) => stats.back.level >= 10 },
   { id: 'legs_master', name: '大腿四頭筋マスター', description: '大腿四頭筋のレベルを10にする', check: (stats) => stats.legs.level >= 10 },
@@ -1227,6 +1229,443 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
   );
 }
 
+// ============================================================================
+// ===== バトルシステム（育てたモンスターを戦わせる） =====
+// バトルの強さは「育成の結果」（レベル・進化の型・調子・鍛えどき）から決定的に導出する。
+// バトルではEXPを一切配らない（ストリークが称号のみなのと同じ思想）。報酬は討伐称号・討伐数。
+// ============================================================================
+interface BattleStatline {
+  hp: number;
+  atk: number;
+  def: number;
+  spd: number;
+}
+
+interface BattleBoss {
+  id: string;
+  name: string;
+  emoji: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  flavor: string;        // 図鑑的な説明
+  temptChance: number;   // 「サボり誘惑」の基礎成功率（ストリークで軽減される）
+  defeatLine: string;    // 討伐時のセリフ
+  achievementId: string; // 討伐で解除する称号ID（ACHIEVEMENTS に対応エントリが必要）
+}
+
+// 永続データ。旧セーブには存在しないので、読み込み時は INITIAL_BATTLE_STATE で埋める。
+interface BattleState {
+  squad: MuscleType[];      // 最後に編成したスカッド
+  defeatedBosses: string[]; // 討伐済みボスID
+  wins: number;             // 累計勝利数
+}
+
+const BATTLE_SQUAD_SIZE = 3;
+const INITIAL_BATTLE_STATE: BattleState = { squad: [], defeatedBosses: [], wins: 0 };
+
+// MVPのボス。まずは「三日坊主デビル」1体。
+const BATTLE_BOSSES: BattleBoss[] = [
+  {
+    id: 'sanchi_bozu',
+    name: '三日坊主デビル',
+    emoji: '😈',
+    maxHp: 320,
+    atk: 32,
+    def: 12,
+    spd: 13,
+    flavor: 'サボり心の化身。毎ターン仲間の誰かを「サボり誘惑」で行動不能にしてくる。継続（ストリーク）の力が高いほど誘惑に抵抗できる。',
+    temptChance: 0.6,
+    defeatLine: 'バカな…続ける意志が、こんなに強いなんて…！',
+    achievementId: 'boss_sanchi_bozu',
+  },
+];
+
+function getBattleBoss(id: string): BattleBoss {
+  return BATTLE_BOSSES.find(b => b.id === id) ?? BATTLE_BOSSES[0];
+}
+
+// 部位が「回復中（オーバーワーク圏）」か（バトル用のモジュール版。Date依存だが純粋）。
+function isMuscleRecoveringNow(mStats: MuscleStats, muscle: MuscleType, now: number): boolean {
+  const last = mStats.lastTrainedAt || 0;
+  if (last === 0) return false;
+  const requiredMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+  const trainedToday = new Date(last).toDateString() === new Date(now).toDateString();
+  return now - last < requiredMs && !trainedToday;
+}
+
+// 部位が「超回復ピーク（鍛えどき）」か（バトル用のモジュール版）。
+function isMuscleSuperCompNow(mStats: MuscleStats, muscle: MuscleType, now: number): boolean {
+  const last = mStats.lastTrainedAt || 0;
+  if (last === 0) return false;
+  const requiredMs = MUSCLE_RECOVERY_HOURS[muscle] * 60 * 60 * 1000;
+  const elapsed = now - last;
+  return elapsed >= requiredMs && elapsed <= requiredMs * CONDITION_SABORI_GRACE_FACTOR;
+}
+
+// 育成結果から戦闘用ロスターエントリを組み立てる。
+// レベル=基礎値 / 進化の型=ロール補正 / 鍛えどき=気合バフ / オーバーワーク=筋肉痛デバフ。
+// 調子（condition）は与ダメ倍率として別枠で持つ（ダメージ計算時に乗せる）。
+interface BattleRosterEntry {
+  muscle: MuscleType;
+  name: string;
+  branch?: EvolutionBranch;
+  phase: 1 | 2 | 3;
+  stats: BattleStatline;
+  condMultiplier: number;
+  condLabel: string;
+  condColor: string;
+  isSuperComp: boolean;  // 鍛えどき（気合十分）
+  isRecovering: boolean; // オーバーワーク（筋肉痛）
+}
+
+function buildRosterEntry(
+  muscle: MuscleType,
+  mStats: MuscleStats,
+  logs: TrainingLog[],
+  now: number
+): BattleRosterEntry {
+  const level = mStats.level;
+  const phase = getEvolutionPhase(level);
+  const branch = resolveBranch(mStats, muscle, logs);
+  const superComp = isMuscleSuperCompNow(mStats, muscle, now);
+  const recovering = isMuscleRecoveringNow(mStats, muscle, now);
+
+  const hp = Math.round((80 + level * 8) * (branch === 'endurance' ? 1.3 : 1));
+  let atk = Math.round((20 + level * 4) * (branch === 'power' ? 1.3 : 1));
+  let def = Math.round((10 + level * 2) * (branch === 'endurance' ? 1.2 : 1));
+  const spd = Math.round((10 + level * 1.5) * (branch === 'balanced' ? 1.3 : 1));
+
+  if (superComp) atk = Math.round(atk * 1.15); // 鍛えどき＝気合十分でATKアップ
+  if (recovering) def = Math.round(def * 0.8); // オーバーワーク＝筋肉痛でDEFダウン
+
+  const tier = getConditionTier(mStats.condition ?? DEFAULT_CONDITION);
+
+  return {
+    muscle,
+    name: mStats.nickname || MUSCLE_NAMES[muscle],
+    branch,
+    phase,
+    stats: { hp, atk, def, spd },
+    condMultiplier: tier.multiplier,
+    condLabel: tier.label,
+    condColor: tier.color,
+    isSuperComp: superComp,
+    isRecovering: recovering,
+  };
+}
+
+// ストリークによる「サボり誘惑」耐性（0〜0.7）。継続を維持しているほど誘惑を跳ね返す。
+function getBattleStreakResist(streak: StreakData, now: number): number {
+  return Math.min(0.7, getEffectiveStreak(streak, now) * 0.05);
+}
+
+function computeBattleDamage(effAtk: number, def: number): number {
+  return Math.max(1, Math.round(effAtk - def * 0.5));
+}
+
+// 戦闘中の味方1体の状態。ロスターから複製して現在HPや状態異常を持つ。
+interface BattleAlly {
+  muscle: MuscleType;
+  name: string;
+  branch?: EvolutionBranch;
+  phase: 1 | 2 | 3;
+  maxHp: number;
+  hp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  condMultiplier: number;
+  condLabel: string;
+  condColor: string;
+  isSuperComp: boolean;
+  isRecovering: boolean;
+  disabled: number; // 「サボり誘惑」の残りターン（>0なら行動不能）
+}
+
+type BattleCommand = 'attack' | 'defend' | 'protein';
+
+interface BattleViewProps {
+  boss: BattleBoss;
+  roster: BattleRosterEntry[]; // 出撃スカッド
+  streakResist: number;        // 0〜0.7
+  proteinStock: number;        // プロテイン所持数（直近に飲んだ本数から算出）
+  alreadyDefeated: boolean;    // 既に討伐済みのボスか（称号を再度は出さない）
+  onWin: () => void;
+  onExit: () => void;
+}
+
+// バトル画面本体。戦闘中の一時状態（各HP・ターン・ログ・コマンド）はこのコンポーネント内に閉じる。
+// 1回の戦闘ごとに親が key を変えて作り直す前提。
+function BattleView({ boss, roster, streakResist, proteinStock, alreadyDefeated, onWin, onExit }: BattleViewProps) {
+  const [allies, setAllies] = useState<BattleAlly[]>(() =>
+    roster.map(r => ({
+      muscle: r.muscle,
+      name: r.name,
+      branch: r.branch,
+      phase: r.phase,
+      maxHp: r.stats.hp,
+      hp: r.stats.hp,
+      atk: r.stats.atk,
+      def: r.stats.def,
+      spd: r.stats.spd,
+      condMultiplier: r.condMultiplier,
+      condLabel: r.condLabel,
+      condColor: r.condColor,
+      isSuperComp: r.isSuperComp,
+      isRecovering: r.isRecovering,
+      disabled: 0,
+    }))
+  );
+  const [enemyHp, setEnemyHp] = useState(boss.maxHp);
+  const [turn, setTurn] = useState(1);
+  const [log, setLog] = useState<string[]>([`${boss.name}が あらわれた！`]);
+  const [cmds, setCmds] = useState<Partial<Record<MuscleType, BattleCommand>>>({});
+  const [potions, setPotions] = useState(proteinStock);
+  const [outcome, setOutcome] = useState<'fighting' | 'win' | 'lose'>('fighting');
+  const wonRef = useRef(false);
+
+  const actionable = allies.filter(a => a.hp > 0 && a.disabled === 0);
+  const proteinChosen = actionable.filter(a => cmds[a.muscle] === 'protein').length;
+  const ready = actionable.every(a => cmds[a.muscle] !== undefined);
+
+  const setCmd = (muscle: MuscleType, cmd: BattleCommand) => {
+    setCmds(prev => ({ ...prev, [muscle]: cmd }));
+  };
+
+  const resolveTurn = () => {
+    if (outcome !== 'fighting') return;
+    const lines: string[] = [`― ${turn}ターン目 ―`];
+    let newEnemyHp = enemyHp;
+    let potionsLeft = potions;
+    const next = allies.map(a => ({ ...a }));
+
+    // このターン「ぼうぎょ」を選んだ味方（被ダメ半減）
+    const defending = new Set<MuscleType>();
+    next.forEach(a => {
+      if (a.hp > 0 && a.disabled === 0 && cmds[a.muscle] === 'defend') defending.add(a.muscle);
+    });
+
+    // 行動順（SPD降順）。行動可能な味方とボスを並べる。
+    type Actor = { kind: 'ally'; idx: number } | { kind: 'boss' };
+    const actors: { actor: Actor; spd: number }[] = [];
+    next.forEach((a, idx) => {
+      if (a.hp > 0 && a.disabled === 0) actors.push({ actor: { kind: 'ally', idx }, spd: a.spd });
+    });
+    actors.push({ actor: { kind: 'boss' }, spd: boss.spd });
+    actors.sort((x, y) => y.spd - x.spd);
+
+    // このターンの開始時点で行動不能だった味方（＝今ターン休んで回復する対象）
+    const startDisabled = next.filter(a => a.disabled > 0).map(a => a.muscle);
+
+    for (const { actor } of actors) {
+      if (newEnemyHp <= 0) break;
+      if (next.every(a => a.hp <= 0)) break;
+
+      if (actor.kind === 'ally') {
+        const a = next[actor.idx];
+        if (a.hp <= 0) continue;
+        const cmd = cmds[a.muscle];
+        if (cmd === 'attack') {
+          const dmg = computeBattleDamage(a.atk * a.condMultiplier, boss.def);
+          newEnemyHp = Math.max(0, newEnemyHp - dmg);
+          lines.push(`${a.name}の こうげき！ ${boss.name}に ${dmg} ダメージ！`);
+        } else if (cmd === 'defend') {
+          lines.push(`${a.name}は 身を守っている。`);
+        } else if (cmd === 'protein' && potionsLeft > 0) {
+          const heal = Math.round(a.maxHp * 0.3);
+          a.hp = Math.min(a.maxHp, a.hp + heal);
+          potionsLeft -= 1;
+          lines.push(`${a.name}は プロテインを飲んだ！ HPが ${heal} 回復！`);
+        } else {
+          lines.push(`${a.name}は 様子を見ている。`);
+        }
+      } else {
+        // ボスの行動：まず「サボり誘惑」、次に通常攻撃。
+        const temptTargets = next.filter(a => a.hp > 0 && a.disabled === 0);
+        if (temptTargets.length > 0) {
+          if (Math.random() < boss.temptChance * (1 - streakResist)) {
+            const victim = temptTargets[Math.floor(Math.random() * temptTargets.length)];
+            victim.disabled = 1;
+            lines.push(`${boss.name}の サボり誘惑！ ${victim.name}は やる気を失った…！（次のターン動けない）`);
+          } else {
+            lines.push(`${boss.name}は サボりを ささやいたが 効かなかった！`);
+          }
+        }
+        const alive = next.filter(a => a.hp > 0);
+        if (alive.length > 0) {
+          const target = alive[Math.floor(Math.random() * alive.length)];
+          let dmg = computeBattleDamage(boss.atk, target.def);
+          if (defending.has(target.muscle)) dmg = Math.max(1, Math.round(dmg / 2));
+          target.hp = Math.max(0, target.hp - dmg);
+          lines.push(`${boss.name}の こうげき！ ${target.name}に ${dmg} ダメージ！`);
+          if (target.hp <= 0) lines.push(`${target.name}は 倒れた…`);
+        }
+      }
+    }
+
+    // 開始時に行動不能だった味方は、この休みで復帰する。
+    next.forEach(a => {
+      if (startDisabled.includes(a.muscle)) a.disabled = Math.max(0, a.disabled - 1);
+    });
+
+    let result: 'fighting' | 'win' | 'lose' = 'fighting';
+    if (newEnemyHp <= 0) {
+      lines.push(`${boss.name}を 討伐した！`, `「${boss.defeatLine}」`);
+      result = 'win';
+    } else if (next.every(a => a.hp <= 0)) {
+      lines.push('スカッドは 全滅した…', 'また鍛えて出直そう。');
+      result = 'lose';
+    }
+
+    setAllies(next);
+    setEnemyHp(newEnemyHp);
+    setPotions(potionsLeft);
+    setCmds({});
+    setLog(prev => [...prev, ...lines]);
+
+    if (result === 'win') {
+      setOutcome('win');
+      if (!wonRef.current) {
+        wonRef.current = true;
+        onWin();
+      }
+    } else if (result === 'lose') {
+      setOutcome('lose');
+    } else {
+      setTurn(t => t + 1);
+    }
+  };
+
+  const enemyHpPct = Math.max(0, (enemyHp / boss.maxHp) * 100);
+
+  return (
+    <div className="glass-panel" style={{ marginTop: 0 }}>
+      {/* 敵：ボス */}
+      <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+        <div style={{ fontSize: '3.5rem', lineHeight: 1, filter: outcome === 'win' ? 'grayscale(1) opacity(0.4)' : 'none', transition: 'filter 0.4s' }}>{boss.emoji}</div>
+        <div style={{ fontWeight: 'bold', color: '#ff6b6b', fontSize: '1.1rem', marginTop: '0.3rem' }}>{boss.name}</div>
+        <div className="battle-hp-track" style={{ maxWidth: '320px', margin: '0.5rem auto 0' }}>
+          <div className="battle-hp-fill" style={{ width: `${enemyHpPct}%`, background: 'linear-gradient(90deg, #ff4d4d, #ff8f4d)' }} />
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>HP {enemyHp} / {boss.maxHp}</div>
+      </div>
+
+      {/* 味方スカッド */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+        {allies.map(a => {
+          const hpPct = Math.max(0, (a.hp / a.maxHp) * 100);
+          const dead = a.hp <= 0;
+          const disabled = a.disabled > 0;
+          const branchEmoji = a.branch ? BRANCH_INFO[a.branch].emoji : '';
+          return (
+            <div key={a.muscle} className="muscle-card" style={{ padding: '0.6rem 0.8rem', opacity: dead ? 0.45 : 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <img
+                  src={getSpriteSrc(a.muscle, a.phase, a.branch)}
+                  onError={e => handleSpriteError(e, a.muscle)}
+                  alt={a.name}
+                  style={{ width: '40px', height: '40px', imageRendering: 'pixelated', flexShrink: 0, filter: dead ? 'grayscale(1)' : 'none' }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {branchEmoji}{a.name}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: a.condColor, flexShrink: 0 }}>
+                      {a.isSuperComp ? '⚡' : ''}{a.isRecovering ? '💢' : ''}{a.condLabel}
+                    </span>
+                  </div>
+                  <div className="battle-hp-track" style={{ marginTop: '0.3rem' }}>
+                    <div className="battle-hp-fill" style={{ width: `${hpPct}%`, background: hpPct > 30 ? 'linear-gradient(90deg, #39ff14, #00e5ff)' : '#ff4d4d' }} />
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>HP {a.hp} / {a.maxHp}</div>
+                </div>
+              </div>
+
+              {/* コマンド（戦闘中・行動可能な味方のみ） */}
+              {outcome === 'fighting' && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {dead ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>💀 戦闘不能</div>
+                  ) : disabled ? (
+                    <div style={{ fontSize: '0.75rem', color: '#ff9f1c', textAlign: 'center' }}>😵 サボり誘惑中…（動けない）</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      {([['attack', '⚔️ こうげき'], ['defend', '🛡️ ぼうぎょ'], ['protein', '🥤 プロテイン']] as const).map(([cmd, label]) => {
+                        const selected = cmds[a.muscle] === cmd;
+                        const proteinDisabled = cmd === 'protein' && (potions === 0 || (!selected && proteinChosen >= potions));
+                        return (
+                          <button
+                            key={cmd}
+                            onClick={() => setCmd(a.muscle, cmd)}
+                            disabled={proteinDisabled}
+                            style={{
+                              flex: 1,
+                              padding: '0.4rem 0.2rem',
+                              fontSize: '0.68rem',
+                              opacity: proteinDisabled ? 0.4 : 1,
+                              border: selected ? '2px solid var(--border-highlight)' : '1px solid rgba(255,255,255,0.15)',
+                              background: selected ? 'rgba(0,229,255,0.15)' : 'transparent',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 実行ボタン / 状態表示 */}
+      {outcome === 'fighting' && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+            <span>🥤 プロテイン残り {potions}</span>
+            <span>🔥 誘惑耐性 {Math.round(streakResist * 100)}%</span>
+          </div>
+          <button onClick={resolveTurn} disabled={!ready} style={{ width: '100%', padding: '0.8rem', opacity: ready ? 1 : 0.5 }}>
+            {actionable.length === 0 ? '⏳ 耐える' : 'この作戦で実行！'}
+          </button>
+        </div>
+      )}
+
+      {/* 勝敗パネル */}
+      {outcome === 'win' && (
+        <div style={{ textAlign: 'center', marginBottom: '1rem', animation: 'popUp 0.5s ease-out' }}>
+          <h2 style={{ color: '#ffea00', marginBottom: '0.5rem' }}>🎉 討伐成功！ 🎉</h2>
+          {!alreadyDefeated && (
+            <div style={{ fontSize: '0.9rem', color: '#00ffff', marginBottom: '0.8rem', padding: '0.7rem', background: 'rgba(0,255,255,0.08)', borderRadius: '8px', border: '1px solid rgba(0,255,255,0.4)' }}>
+              🏆 称号「悪癖を断つ者」を獲得しました！
+            </div>
+          )}
+          <button onClick={onExit} style={{ width: '100%', maxWidth: '240px' }}>もどる</button>
+        </div>
+      )}
+      {outcome === 'lose' && (
+        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ color: '#ff6b6b', marginBottom: '0.5rem' }}>💀 全滅…</h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.8rem' }}>もっと鍛えて、良いコンディションで挑もう。</p>
+          <button onClick={onExit} style={{ width: '100%', maxWidth: '240px' }}>もどる</button>
+        </div>
+      )}
+
+      {/* バトルログ */}
+      <div className="battle-log">
+        {log.slice(-8).map((line, i) => (
+          <div key={i} style={{ marginBottom: '0.2rem' }}>{line}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('characters');
 
@@ -1283,6 +1722,26 @@ function App() {
     }
     return { current: 0, best: 0, lastDate: '' };
   });
+
+  // バトルの永続データ。旧セーブには無いので INITIAL_BATTLE_STATE で埋める（後方互換）。
+  const [battleState, setBattleState] = useState<BattleState>(() => {
+    const saved = localStorage.getItem('battleState');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        squad: Array.isArray(parsed.squad) ? parsed.squad : [],
+        defeatedBosses: Array.isArray(parsed.defeatedBosses) ? parsed.defeatedBosses : [],
+        wins: typeof parsed.wins === 'number' ? parsed.wins : 0,
+      };
+    }
+    return INITIAL_BATTLE_STATE;
+  });
+
+  // バトル画面の遷移。'menu'=ボス選択 / 'squad'=スカッド編成 / 'fight'=戦闘中。
+  const [battleScreen, setBattleScreen] = useState<'menu' | 'squad' | 'fight'>('menu');
+  const [battleBossId, setBattleBossId] = useState<string>(BATTLE_BOSSES[0].id);
+  const [squadDraft, setSquadDraft] = useState<MuscleType[]>([]);
+  const [battleKey, setBattleKey] = useState<number>(0); // 戦闘のたびに BattleView を作り直すための key
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
   const [weight, setWeight] = useState<number | ''>('');
@@ -1480,6 +1939,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('trainingStreak', JSON.stringify(streak));
   }, [streak]);
+
+  useEffect(() => {
+    localStorage.setItem('battleState', JSON.stringify(battleState));
+  }, [battleState]);
 
   useEffect(() => {
     const savedUnlocked = localStorage.getItem('unlockedAchievements');
@@ -2685,6 +3148,140 @@ function App() {
     );
   };
 
+  // ===== バトル：所持プロテイン・ハンドラ・画面描画 =====
+  // プロテイン所持数＝直近24時間に飲んだ本数（最大3）。既存の proteinLogs をバトルの回復アイテムに変換。
+  const battleProteinStock = Math.min(3, proteinLogs.filter(t => now - t < 24 * 60 * 60 * 1000).length);
+  const allMuscleList = Object.keys(stats) as MuscleType[];
+
+  const openBattleSquad = (bossId: string) => {
+    setBattleBossId(bossId);
+    // 前回のスカッドがあれば流用、無ければレベル上位3体をプリセット。
+    const savedValid = battleState.squad.filter(m => allMuscleList.includes(m));
+    const preset = savedValid.length === BATTLE_SQUAD_SIZE
+      ? savedValid
+      : [...allMuscleList].sort((a, b) => stats[b].level - stats[a].level).slice(0, BATTLE_SQUAD_SIZE);
+    setSquadDraft(preset);
+    setBattleScreen('squad');
+  };
+
+  const toggleSquadMember = (muscle: MuscleType) => {
+    setSquadDraft(prev => {
+      if (prev.includes(muscle)) return prev.filter(m => m !== muscle);
+      if (prev.length >= BATTLE_SQUAD_SIZE) return prev;
+      return [...prev, muscle];
+    });
+  };
+
+  const startBattle = () => {
+    setBattleState(prev => ({ ...prev, squad: squadDraft }));
+    setBattleKey(k => k + 1);
+    setBattleScreen('fight');
+  };
+
+  // 勝利時：討伐数・討伐済みを更新し、討伐称号を付与（EXPは配らない）。
+  const handleBattleWin = () => {
+    const boss = getBattleBoss(battleBossId);
+    setBattleState(prev => ({
+      ...prev,
+      wins: prev.wins + 1,
+      defeatedBosses: prev.defeatedBosses.includes(boss.id) ? prev.defeatedBosses : [...prev.defeatedBosses, boss.id],
+    }));
+    setUnlockedAchievements(prev => prev.includes(boss.achievementId) ? prev : [...prev, boss.achievementId]);
+  };
+
+  const renderBattle = () => {
+    const boss = getBattleBoss(battleBossId);
+
+    if (battleScreen === 'fight') {
+      const roster = squadDraft.map(m => buildRosterEntry(m, stats[m], trainingLogs, now));
+      return (
+        <BattleView
+          key={battleKey}
+          boss={boss}
+          roster={roster}
+          streakResist={getBattleStreakResist(streak, now)}
+          proteinStock={battleProteinStock}
+          alreadyDefeated={battleState.defeatedBosses.includes(boss.id)}
+          onWin={handleBattleWin}
+          onExit={() => setBattleScreen('menu')}
+        />
+      );
+    }
+
+    if (battleScreen === 'squad') {
+      const sorted = [...allMuscleList].sort((a, b) => stats[b].level - stats[a].level);
+      return (
+        <div className="glass-panel" style={{ marginTop: 0 }}>
+          <h2 style={{ textAlign: 'center', marginBottom: '0.3rem' }}>⚔️ スカッド編成</h2>
+          <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            {boss.emoji} {boss.name} に挑む{BATTLE_SQUAD_SIZE}体を選ぼう（{squadDraft.length} / {BATTLE_SQUAD_SIZE}）
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '1rem' }}>
+            {sorted.map(m => {
+              const entry = buildRosterEntry(m, stats[m], trainingLogs, now);
+              const selected = squadDraft.includes(m);
+              const branchEmoji = entry.branch ? BRANCH_INFO[entry.branch].emoji : '';
+              return (
+                <button
+                  key={m}
+                  onClick={() => toggleSquadMember(m)}
+                  style={{
+                    textAlign: 'left', padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    border: selected ? '2px solid var(--border-highlight)' : '1px solid rgba(255,255,255,0.12)',
+                    background: selected ? 'rgba(0,229,255,0.12)' : 'transparent',
+                  }}
+                >
+                  <img src={getSpriteSrc(m, entry.phase, entry.branch)} onError={e => handleSpriteError(e, m)} alt={entry.name} style={{ width: '34px', height: '34px', imageRendering: 'pixelated', flexShrink: 0 }} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: '0.78rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchEmoji}{entry.name}</span>
+                    <span style={{ display: 'block', fontSize: '0.66rem', color: 'var(--text-secondary)' }}>
+                      Lv{stats[m].level} <span style={{ color: entry.condColor }}>{entry.isSuperComp ? '⚡' : ''}{entry.condLabel}</span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={() => setBattleScreen('menu')} style={{ flex: 1 }}>もどる</button>
+            <button onClick={startBattle} disabled={squadDraft.length !== BATTLE_SQUAD_SIZE} style={{ flex: 2, opacity: squadDraft.length === BATTLE_SQUAD_SIZE ? 1 : 0.5 }}>出撃！</button>
+          </div>
+        </div>
+      );
+    }
+
+    // メニュー（ボス選択）
+    return (
+      <div className="glass-panel" style={{ marginTop: 0 }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '0.3rem' }}>⚔️ バトル</h2>
+        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.6 }}>
+          育てたモンスターでサボり魔に挑もう。<br />強さはレベル・進化の型・調子・鍛えどきで決まる。バトルではEXPは増えない。
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginBottom: '1.2rem', fontSize: '0.8rem' }}>
+          <span>🏅 討伐数 <b style={{ color: 'var(--text-accent)' }}>{battleState.wins}</b></span>
+          <span>👾 討伐済み <b style={{ color: 'var(--text-accent)' }}>{battleState.defeatedBosses.length} / {BATTLE_BOSSES.length}</b></span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+          {BATTLE_BOSSES.map(b => {
+            const cleared = battleState.defeatedBosses.includes(b.id);
+            return (
+              <div key={b.id} className="muscle-card" style={{ padding: '0.8rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>{b.emoji}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 'bold', color: '#ff6b6b' }}>{b.name} {cleared && <span style={{ fontSize: '0.7rem', color: '#39ff14' }}>討伐済み✓</span>}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{b.flavor}</div>
+                  </div>
+                </div>
+                <button onClick={() => openBattleSquad(b.id)} style={{ width: '100%' }}>{cleared ? '再挑戦する' : '挑戦する'}</button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
     <div className="main-content" ref={mainContentRef}>
@@ -3344,6 +3941,9 @@ function App() {
       {/* --- タブコンテンツ：図鑑 --- */}
       {activeTab === 'encyclopedia' && renderEncyclopedia()}
 
+      {/* --- タブコンテンツ：バトル --- */}
+      {activeTab === 'battle' && renderBattle()}
+
       {/* プレイヤー登録モーダル：未登録なら初回起動時に表示。登録した名前をキャラが呼んでくれる */}
       {showPlayerModal && (
         <div className="modal-overlay" style={{ zIndex: 1003 }} onClick={() => { if (playerName) setShowPlayerModal(false); }}>
@@ -3857,6 +4457,7 @@ function App() {
         ['logs', '📖', '履歴'],
         ['achievements', '🏆', '実績'],
         ['encyclopedia', '📚', '図鑑'],
+        ['battle', '⚔️', 'バトル'],
       ] as const).map(([tab, icon, label]) => (
         <button
           key={tab}
