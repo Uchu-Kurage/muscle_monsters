@@ -217,14 +217,24 @@ training (skipping legs tanks your score).
   (`getPoseSpriteSrc`), which falls back to the pose's emoji if the file is
   missing. Currently placeholder pixel art; see `public/assets/POSE_SPRITES.md`
   for the naming/replacement convention.
+- **Rivals & placement** (`RivalDef`, each contest's `rivals`): every contest
+  fields named rival CPUs. Their scores are rolled once per attempt
+  (`baseScore × 0.9–1.1`, fixed in a `useState` initializer). The player + rivals
+  are ranked by score, and **placement is rank-based**: 1st = 優勝 (`win`), upper
+  half = 入賞 (`pass`), else 予選落ち (`fail`). `passLine` / `winLine` are kept only
+  as difficulty/rival-calibration references, not the placement gate.
+- **Ceremonies** (`ContestView` `phase`: `opening` → `posing` → `result`): an
+  opening ceremony (MC intro + rival lineup with taunts) precedes posing; the
+  result phase is a 結果発表 with an MC announcement and a medal ranking board
+  (player highlighted). MC lines are templated with the player name.
 - **Contests** (`CONTESTS`): 地区 → 都道府県 → 全国 → 世界選手権, each with more
-  poses and higher `passLine` (入賞/clear) & `winLine` (優勝), and a `requires`
-  gate (must clear the previous). Each has a `clearTitleId` (and 世界's
-  `winTitleId`) unlocked directly on finish; those `ACHIEVEMENTS` entries use
-  `check: () => false` so the per-record auto-check never touches them. Results
-  are shown inside the contest panel (not the global `achievementAlert` modal).
-  `ContestView` captures the pre-attempt cleared/won state in a ref so the
-  "称号獲得" banner is judged against the state *before* recording the result.
+  poses, stronger rivals, and a `requires` gate (must clear the previous). Each
+  has a `clearTitleId` (and 世界's `winTitleId`) unlocked directly on finish;
+  those `ACHIEVEMENTS` entries use `check: () => false` so the per-record
+  auto-check never touches them. Results are shown inside the contest panel (not
+  the global `achievementAlert` modal). `ContestView` captures the pre-attempt
+  cleared/won state in a ref so the "称号獲得" banner is judged against the state
+  *before* recording the result.
 - **Navigation**: the contest tab drives a small screen state
   (`contestScreen`: `menu` → `compete`); `contestKey` is bumped each attempt so
   `ContestView` remounts fresh.

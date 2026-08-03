@@ -1366,18 +1366,28 @@ const CONTEST_POSES: PoseDef[] = [
   },
 ];
 
-// 大会。規定ポーズ・入賞ライン・優勝ライン・称号を持つ。上位大会ほどラインが高い。
+// ライバルCPU。大会ごとに配置され、プレイヤーと順位を競う。
+// baseScore を中心に毎回わずかに変動したスコアを出す（passLine〜winLine 付近で調整）。
+interface RivalDef {
+  name: string;
+  emoji: string;
+  comment: string;   // 開会式での意気込み
+  baseScore: number;
+}
+
+// 大会。規定ポーズ・入賞ライン・優勝ライン・称号・ライバルを持つ。上位大会ほどラインが高い。
 interface Contest {
   id: string;
   name: string;
   emoji: string;
   flavor: string;
   poses: string[];       // 出題する規定ポーズID
-  passLine: number;      // 入賞（クリア）ライン
-  winLine: number;       // 優勝ライン
+  passLine: number;      // 入賞ラインの目安（ライバル強度の基準にも使う）
+  winLine: number;       // 優勝ラインの目安
   clearTitleId: string;  // 入賞で得る称号
   winTitleId?: string;   // 優勝で得る特別称号（あれば）
   requires?: string;     // このIDの大会を入賞済みでないと挑戦できない
+  rivals: RivalDef[];    // 出場するライバルCPU
 }
 
 const CONTESTS: Contest[] = [
@@ -1390,6 +1400,10 @@ const CONTESTS: Contest[] = [
     passLine: 60,
     winLine: 110,
     clearTitleId: 'clear_chiku',
+    rivals: [
+      { name: 'ジム歴半年ボーイ', emoji: '🐣', comment: '最近ジム入会したっす！お手柔らかに！', baseScore: 55 },
+      { name: '筋トレ2年目くん', emoji: '💦', comment: '今日は仕上がってるぜ、負けねぇ！', baseScore: 100 },
+    ],
   },
   {
     id: 'ken',
@@ -1401,6 +1415,10 @@ const CONTESTS: Contest[] = [
     winLine: 230,
     clearTitleId: 'clear_ken',
     requires: 'chiku',
+    rivals: [
+      { name: '県代表・鬼塚', emoji: '😎', comment: '県の看板、背負ってんだ。', baseScore: 145 },
+      { name: 'ベテラン・松岡', emoji: '🧔', comment: '経験の差、見せてやるよ。', baseScore: 215 },
+    ],
   },
   {
     id: 'zenkoku',
@@ -1412,6 +1430,10 @@ const CONTESTS: Contest[] = [
     winLine: 420,
     clearTitleId: 'clear_zenkoku',
     requires: 'ken',
+    rivals: [
+      { name: '全国区・剛田', emoji: '🦁', comment: '全国のレベル、教えてやる。', baseScore: 295 },
+      { name: '前年王者・氷室', emoji: '❄️', comment: '王座は譲らない。完璧に仕上げてきた。', baseScore: 400 },
+    ],
   },
   {
     id: 'sekai',
@@ -1424,6 +1446,10 @@ const CONTESTS: Contest[] = [
     clearTitleId: 'clear_sekai',
     winTitleId: 'win_sekai',
     requires: 'zenkoku',
+    rivals: [
+      { name: '世界ランカー・イワン', emoji: '🐻', comment: 'ウォッカより濃い筋肉、見せてやる。', baseScore: 460 },
+      { name: '絶対王者・アーノルド', emoji: '👑', comment: 'カムバック。私が世界最強だ。', baseScore: 600 },
+    ],
   },
 ];
 
@@ -1513,32 +1539,48 @@ function PoseSprite({ pose, size }: { pose: PoseDef; size: number }) {
 
 interface PoseResult { pose: PoseDef; score: number; timing: TimingResult; }
 
+// 大会のフィールド（プレイヤー＋ライバル）の1エントリ。
+interface Competitor { name: string; emoji: string; score: number; isPlayer: boolean; }
+
 interface ContestViewProps {
   contest: Contest;
   poses: PoseDef[];
   stats: AppState;
   balance: { factor: number; label: string; color: string };
+  playerName: string;
   alreadyCleared: boolean;
   alreadyWon: boolean;
   onFinish: (result: { total: number; placement: 'win' | 'pass' | 'fail' }) => void;
   onExit: () => void;
 }
 
-// 大会画面本体。規定ポーズを1つずつ「キメる」タイミングゲームで採点していく。
+// 大会画面本体。開会式 → 規定ポーズを1つずつ「キメる」採点 → 結果発表（閉会式）。
 // 1回の大会ごとに親が key を変えて作り直す前提。
-function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWon, onFinish, onExit }: ContestViewProps) {
+function ContestView({ contest, poses, stats, balance, playerName, alreadyCleared, alreadyWon, onFinish, onExit }: ContestViewProps) {
+  const displayName = playerName || 'あなた';
   const [poseIndex, setPoseIndex] = useState(0);
   const [gaugePos, setGaugePos] = useState(0);
   const [running, setRunning] = useState(true); // ゲージ稼働中（＝まだキメていない）
   const [results, setResults] = useState<PoseResult[]>([]);
   const [lastPose, setLastPose] = useState<PoseResult | null>(null);
-  const [phase, setPhase] = useState<'posing' | 'result'>('posing');
+  const [phase, setPhase] = useState<'opening' | 'posing' | 'result'>('opening');
   const [finalTotal, setFinalTotal] = useState(0);
   const [placement, setPlacement] = useState<'win' | 'pass' | 'fail'>('fail');
+  const [ranking, setRanking] = useState<Competitor[]>([]);
+  const [playerRank, setPlayerRank] = useState(0);
   const finishedRef = useRef(false);
   // 出場前の達成状況を固定で覚えておく（結果記録で props が変わっても「今回初めて獲得」を正しく判定するため）。
   const wasClearedRef = useRef(alreadyCleared);
   const wasWonRef = useRef(alreadyWon);
+  // ライバルのスコアは出場時に一度だけ確定（baseScore を中心に±10%変動）。
+  const [rivalScores] = useState<Competitor[]>(() =>
+    contest.rivals.map(r => ({
+      name: r.name,
+      emoji: r.emoji,
+      score: Math.max(1, Math.round(r.baseScore * (0.9 + Math.random() * 0.2))),
+      isPlayer: false,
+    }))
+  );
 
   // キメゲージ：0〜100を往復させる。キメる（running=false）と止まる。
   useEffect(() => {
@@ -1573,9 +1615,16 @@ function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWo
     finishedRef.current = true;
     const raw = allResults.reduce((a, r) => a + r.score, 0);
     const total = Math.round(raw * balance.factor);
+    // プレイヤーとライバルを総合スコアで順位付けし、順位で入賞判定する。
+    const field: Competitor[] = [{ name: displayName, emoji: '⭐', score: total, isPlayer: true }, ...rivalScores];
+    field.sort((a, b) => b.score - a.score);
+    const rank = field.findIndex(c => c.isPlayer) + 1;
+    // 1位＝優勝 / 上位半分＝入賞 / それ以下＝予選落ち。
     const place: 'win' | 'pass' | 'fail' =
-      total >= contest.winLine ? 'win' : total >= contest.passLine ? 'pass' : 'fail';
+      rank === 1 ? 'win' : rank <= Math.ceil(field.length / 2) ? 'pass' : 'fail';
     setFinalTotal(total);
+    setRanking(field);
+    setPlayerRank(rank);
     setPlacement(place);
     setPhase('result');
     onFinish({ total, placement: place });
@@ -1592,25 +1641,90 @@ function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWo
     }
   };
 
-  // ===== 結果画面 =====
+  // ===== 開会式 =====
+  if (phase === 'opening') {
+    return (
+      <div className="glass-panel" style={{ marginTop: 0 }}>
+        <div style={{ textAlign: 'center', marginBottom: '0.8rem' }}>
+          <div style={{ fontSize: '2.4rem', lineHeight: 1 }}>{contest.emoji}</div>
+          <h2 style={{ color: 'var(--text-accent)', margin: '0.2rem 0' }}>{contest.name} 開会式</h2>
+        </div>
+        <div className="contest-announce" style={{ marginBottom: '1rem' }}>
+          <div>📣 ようこそ、「{contest.name}」へ！</div>
+          <div>本日は {rivalScores.length + 1} 名の選手が、鍛え上げた肉体で頂点を競います。</div>
+          <div>エントリーNo.1 ―― <b style={{ color: 'var(--text-accent)' }}>{displayName}</b> 選手、入場です！</div>
+        </div>
+
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>― 本日のライバル ―</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+          {contest.rivals.map(r => (
+            <div key={r.name} className="muscle-card" style={{ padding: '0.5rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ fontSize: '1.8rem', lineHeight: 1 }}>{r.emoji}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{r.name}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>「{r.comment}」</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={() => setPhase('posing')} style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}>ステージへ！ ▶</button>
+      </div>
+    );
+  }
+
+  // ===== 結果発表（閉会式）=====
   if (phase === 'result') {
     const rawTotal = results.reduce((a, r) => a + r.score, 0);
     const newTitle =
       placement === 'win' && contest.winTitleId && !wasWonRef.current ? 'グランプリ王者'
       : (placement === 'win' || placement === 'pass') && !wasClearedRef.current ? getPlacementTitle(contest)
       : null;
-    const headline = placement === 'win' ? '🏆 優勝！' : placement === 'pass' ? '🎉 入賞！（クリア）' : '😢 予選落ち…';
+    const headline = placement === 'win' ? '🏆 優勝！' : placement === 'pass' ? '🎉 入賞！' : '😢 入賞ならず…';
     const headColor = placement === 'fail' ? '#ff6b6b' : '#ffea00';
+    const mcLine =
+      placement === 'win' ? `優勝はっ…${displayName} 選手ぅーっ！！ おめでとうございます！`
+      : placement === 'pass' ? `${displayName} 選手、見事な仕上がりで入賞です！`
+      : `${displayName} 選手、今回は惜しくも入賞ならず。次の舞台で雪辱を！`;
+    const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}位`);
     return (
       <div className="glass-panel" style={{ marginTop: 0 }}>
-        <h2 style={{ textAlign: 'center', color: headColor, marginBottom: '0.4rem', animation: 'popUp 0.5s ease-out' }}>{headline}</h2>
-        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-          <div style={{ fontSize: '2.4rem', fontWeight: 'bold', color: 'var(--text-accent)', lineHeight: 1.1 }}>{finalTotal}</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>総合スコア（入賞 {contest.passLine} / 優勝 {contest.winLine}）</div>
+        <h2 style={{ textAlign: 'center', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>📣 審査結果発表</h2>
+        <div className="contest-announce" style={{ marginBottom: '1rem', textAlign: 'center' }}>
+          <div>全ポーズ審査終了！ 栄えあるチャンピオンは――</div>
         </div>
 
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.8rem', textAlign: 'center' }}>
-          ポーズ合計 {rawTotal} × バランス <span style={{ color: balance.color }}>{balance.label} ×{balance.factor.toFixed(2)}</span>
+        {/* 順位発表ボード */}
+        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
+          {ranking.map((c, i) => (
+            <div key={i} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem',
+              padding: '0.35rem 0.5rem', borderRadius: '6px', margin: '0.15rem 0',
+              background: c.isPlayer ? 'rgba(0,229,255,0.14)' : 'transparent',
+              border: c.isPlayer ? '1px solid rgba(0,229,255,0.5)' : '1px solid transparent',
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                <span style={{ width: '1.8rem', textAlign: 'center' }}>{medal(i)}</span>
+                <span>{c.emoji}</span>
+                <span style={{ fontWeight: c.isPlayer ? 'bold' : 'normal', color: c.isPlayer ? 'var(--text-accent)' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.name}{c.isPlayer ? '（あなた）' : ''}
+                </span>
+              </span>
+              <b style={{ flexShrink: 0 }}>{c.score}</b>
+            </div>
+          ))}
+        </div>
+
+        <h3 style={{ textAlign: 'center', color: headColor, margin: '0.2rem 0', animation: 'popUp 0.5s ease-out' }}>
+          {headline}（{playerRank}位 / {ranking.length}人中）
+        </h3>
+        <div className="contest-announce" style={{ marginBottom: '1rem', textAlign: 'center' }}>
+          <div>📣 {mcLine}</div>
+        </div>
+
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.8rem', textAlign: 'center' }}>
+          あなたの総合スコア <b style={{ color: 'var(--text-accent)' }}>{finalTotal}</b>
+          （ポーズ合計 {rawTotal} × バランス <span style={{ color: balance.color }}>{balance.label} ×{balance.factor.toFixed(2)}</span>）
         </div>
 
         {newTitle && (
@@ -1618,18 +1732,6 @@ function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWo
             🏅 称号「{newTitle}」を獲得しました！
           </div>
         )}
-
-        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
-          {results.map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', padding: '0.15rem 0' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', minWidth: 0 }}>
-                <PoseSprite pose={r.pose} size={22} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.pose.name}</span>
-              </span>
-              <span style={{ flexShrink: 0 }}><span style={{ color: r.timing.color }}>×{r.timing.mult}</span>　<b>{r.score}</b></span>
-            </div>
-          ))}
-        </div>
 
         <button onClick={onExit} style={{ width: '100%' }}>もどる</button>
       </div>
@@ -3231,6 +3333,7 @@ function App() {
           poses={poses}
           stats={stats}
           balance={contestBalance}
+          playerName={playerName}
           alreadyCleared={contestState.cleared.includes(contest.id)}
           alreadyWon={contestState.won.includes(contest.id)}
           onFinish={({ total, placement }) => handleContestFinish(contest.id, total, placement)}
@@ -3244,7 +3347,7 @@ function App() {
       <div className="glass-panel" style={{ marginTop: 0 }}>
         <h2 style={{ textAlign: 'center', marginBottom: '0.3rem' }}>🏅 ボディビル大会</h2>
         <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.6 }}>
-          規定ポーズで全身を見せつけ、審査ポイントを稼ごう。<br />筋量（レベル）・仕上がり（調子/鍛えどき）・全身バランスで得点が決まる。EXPは増えない。
+          規定ポーズで全身を見せつけ、ライバルと審査ポイントを競おう。<br />筋量（レベル）・仕上がり（調子/鍛えどき）・全身バランスで得点が決まる。1位で優勝、上位で入賞。EXPは増えない。
         </p>
         <div style={{ textAlign: 'center', marginBottom: '1.2rem', fontSize: '0.8rem' }}>
           全身バランス評価：<span style={{ color: contestBalance.color, fontWeight: 'bold' }}>{contestBalance.label}（×{contestBalance.factor.toFixed(2)}）</span>
@@ -3267,7 +3370,7 @@ function App() {
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{c.flavor}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      規定ポーズ {c.poses.length}種／入賞 {c.passLine}・優勝 {c.winLine}
+                      規定ポーズ {c.poses.length}種／ライバル {c.rivals.length}人
                       {best !== undefined && <span> ／ ベスト <b style={{ color: 'var(--text-accent)' }}>{best}</b></span>}
                     </div>
                   </div>
