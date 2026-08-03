@@ -342,6 +342,17 @@ input:focus, select:focus {
   transition: left 0.03s linear;
 }
 
+/* 司会（MC）アナウンス：開会式・結果発表のセリフ帯。イベント感のある囲み。 */
+.contest-announce {
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
 /* 審査結果のポーズ別スコア一覧。 */
 .contest-scoreboard {
   background: rgba(0, 0, 0, 0.35);
