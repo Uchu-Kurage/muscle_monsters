@@ -1492,6 +1492,25 @@ function judgeTiming(pos: number): TimingResult {
   return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f1c' };
 }
 
+// ポーズ専用スプライトのパス。public/assets/pose_{poseId}.png（差し替え可、無ければ絵文字にフォールバック）。
+function getPoseSpriteSrc(poseId: string): string {
+  return `/assets/pose_${poseId}.png`;
+}
+
+// ポーズ専用スプライトを表示。読み込めなければそのポーズの絵文字にフォールバックする。
+function PoseSprite({ pose, size }: { pose: PoseDef; size: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span style={{ fontSize: size * 0.66, lineHeight: 1 }} role="img" aria-label={pose.name}>{pose.emoji}</span>;
+  return (
+    <img
+      src={getPoseSpriteSrc(pose.id)}
+      onError={() => setFailed(true)}
+      alt={pose.name}
+      style={{ width: size, height: size, imageRendering: 'pixelated' }}
+    />
+  );
+}
+
 interface PoseResult { pose: PoseDef; score: number; timing: TimingResult; }
 
 interface ContestViewProps {
@@ -1602,9 +1621,12 @@ function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWo
 
         <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
           {results.map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', padding: '0.15rem 0' }}>
-              <span>{r.pose.emoji} {r.pose.name}</span>
-              <span><span style={{ color: r.timing.color }}>×{r.timing.mult}</span>　<b>{r.score}</b></span>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', padding: '0.15rem 0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', minWidth: 0 }}>
+                <PoseSprite pose={r.pose} size={22} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.pose.name}</span>
+              </span>
+              <span style={{ flexShrink: 0 }}><span style={{ color: r.timing.color }}>×{r.timing.mult}</span>　<b>{r.score}</b></span>
             </div>
           ))}
         </div>
@@ -1625,7 +1647,9 @@ function ContestView({ contest, poses, stats, balance, alreadyCleared, alreadyWo
 
       {/* 今のポーズ */}
       <div style={{ textAlign: 'center', marginBottom: '0.8rem' }}>
-        <div style={{ fontSize: '2.6rem', lineHeight: 1 }}>{currentPose.emoji}</div>
+        <div style={{ display: 'flex', justifyContent: 'center', height: '108px' }}>
+          <PoseSprite pose={currentPose} size={108} />
+        </div>
         <div style={{ fontWeight: 'bold', fontSize: '1.05rem', color: 'var(--text-accent)' }}>{currentPose.name}</div>
         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{currentPose.hint}</div>
       </div>

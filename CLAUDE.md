@@ -212,6 +212,11 @@ training (skipping legs tanks your score).
 - **キメ timing** (`ContestView`): per pose a marker sweeps a gauge
   (`contest-gauge`); tapping 「ポーズを決める！」 near the center キレゾーン gives the
   higher timing multiplier. This is the only manual/skill element.
+- **Pose sprites**: each pose has a dedicated sprite at
+  `public/assets/pose_{poseId}.png`, shown via the `PoseSprite` component
+  (`getPoseSpriteSrc`), which falls back to the pose's emoji if the file is
+  missing. Currently placeholder pixel art; see `public/assets/POSE_SPRITES.md`
+  for the naming/replacement convention.
 - **Contests** (`CONTESTS`): 地区 → 都道府県 → 全国 → 世界選手権, each with more
   poses and higher `passLine` (入賞/clear) & `winLine` (優勝), and a `requires`
   gate (must clear the previous). Each has a `clearTitleId` (and 世界's
