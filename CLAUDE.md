@@ -183,38 +183,51 @@ Condition moves via:
   `streak.best`). Missing a day resets it (`getEffectiveStreak`); the banner
   shows the next milestone title (`getNextStreakMilestone`).
 
-### Battle (バトル) system
+### Contest (ボディビル大会) system
 
-A turn-based battle mode where the raised monsters fight **サボり魔 (slacker)
-bosses**. Like the streak system, it **grants no EXP** — the philosophy is that
-battle strength is a *readout of training*, not a second growth axis. Rewards
-are **defeat titles** (achievements) and a kill count only. Self-contained in
-`App.tsx` (`BattleView` component + module-level helpers) and one new
-`localStorage` key (`battleState`).
+A **bodybuilding contest** mode: the player's *whole* set of monsters (their
+"physique") strikes the mandatory poses to earn judging points; hit a contest's
+threshold to place. Modeled on real judging (muscularity / conditioning /
+symmetry). Like the streak system it **grants no EXP** — contest score is a
+*readout of training*, not a second growth axis. Rewards are **placement titles**
+(achievements). Self-contained in `App.tsx` (`ContestView` component +
+module-level helpers) and one new `localStorage` key (`contestState`). There is
+**no squad** — every muscle can score somewhere, which motivates full-body
+training (skipping legs tanks your score).
 
-- **Squad**: pick exactly `BATTLE_SQUAD_SIZE` (3) muscles to deploy.
-- **Stat derivation** (`buildRosterEntry`, all pure/deterministic from the
-  save): `HP/ATK/DEF/SPD` scale off `level`; the `evolutionBranch` gives its
-  role bonus (power→ATK, endurance→HP/DEF, balanced→SPD); **鍛えどき
-  (super-comp) → ATK×1.15 buff**, **overwork → DEF×0.8 debuff**; the
-  `condition` tier multiplier (reused `CONDITION_TIERS`) is applied to damage
-  dealt. Sprites reuse `getSpriteSrc` / `handleSpriteError`.
-- **Turn resolution** (`BattleView.resolveTurn`): the player picks a command
-  (`attack` / `defend` / `protein`) per living, non-disabled ally, then all
-  actors resolve in SPD order. `computeBattleDamage(effAtk, def)`. Protein is a
-  heal item whose stock = protein drinks in the last 24 h (max 3, from
-  `proteinLogs`).
-- **Boss gimmick**: 三日坊主デビル's 「サボり誘惑」 disables one ally for a turn;
-  success chance is reduced by `getBattleStreakResist` (from the *active*
-  effective streak — keeping a streak makes the squad resist temptation).
-- **Bosses** live in `BATTLE_BOSSES`; each has an `achievementId` unlocked
-  directly on victory (its `ACHIEVEMENTS` entry uses `check: () => false` so the
-  per-record auto-check never touches it). The battle victory/defeat is shown
-  inside the battle panel (not via the global `achievementAlert` modal) to keep
-  it self-contained.
-- **Navigation**: the battle tab drives a small screen state
-  (`battleScreen`: `menu` → `squad` → `fight`); `battleKey` is bumped each
-  fight so `BattleView` remounts fresh.
+- **Poses** (`CONTEST_POSES`): the 7 mandatory poses (front double biceps, lat
+  spread, side chest, side triceps, back double biceps, abdominals & thighs,
+  most muscular). Each pose's `displays` lists the muscles it shows the judges
+  with a `weight` (the pose's star muscle = 1.0, assisting muscles fractional).
+  Across the 7 poses every muscle is judged somewhere.
+- **Scoring** (`scorePose`, all pure): per pose, `Σ(level × weight)` = 筋量,
+  times a weighted-average **finish factor** (`getMuscleFinish`: the
+  `condition` tier multiplier reused from `CONDITION_TIERS`, ×1.1 when 鍛えどき /
+  ×0.9 when overworked) = 仕上がり, times a **timing multiplier**
+  (`judgeTiming`, 0.85–1.2) from the キメ mini-game = ポージング. The contest
+  total is `Σ poseScore × balanceFactor`.
+- **Balance/symmetry** (`getBalanceInfo`): a gentle factor (0.85–1.1) from the
+  evenness (coefficient of variation) of the 5 `MUSCLE_GROUPS`' average levels —
+  a weak body region drags the whole score down. Shown as a "全身バランス評価".
+- **キメ timing** (`ContestView`): per pose a marker sweeps a gauge
+  (`contest-gauge`); tapping 「ポーズを決める！」 near the center キレゾーン gives the
+  higher timing multiplier. This is the only manual/skill element.
+- **Pose sprites**: each pose has a dedicated sprite at
+  `public/assets/pose_{poseId}.png`, shown via the `PoseSprite` component
+  (`getPoseSpriteSrc`), which falls back to the pose's emoji if the file is
+  missing. Currently placeholder pixel art; see `public/assets/POSE_SPRITES.md`
+  for the naming/replacement convention.
+- **Contests** (`CONTESTS`): 地区 → 都道府県 → 全国 → 世界選手権, each with more
+  poses and higher `passLine` (入賞/clear) & `winLine` (優勝), and a `requires`
+  gate (must clear the previous). Each has a `clearTitleId` (and 世界's
+  `winTitleId`) unlocked directly on finish; those `ACHIEVEMENTS` entries use
+  `check: () => false` so the per-record auto-check never touches them. Results
+  are shown inside the contest panel (not the global `achievementAlert` modal).
+  `ContestView` captures the pre-attempt cleared/won state in a ref so the
+  "称号獲得" banner is judged against the state *before* recording the result.
+- **Navigation**: the contest tab drives a small screen state
+  (`contestScreen`: `menu` → `compete`); `contestKey` is bumped each attempt so
+  `ContestView` remounts fresh.
 
 ### Player name, nicknames & character dialogue
 
@@ -251,7 +264,7 @@ State is persisted to `localStorage` via `useEffect` hooks. Keys:
 - `selectedTitle` — equipped title string
 - `playerName` — registered player name
 - `trainingStreak` — `StreakData` (`current` / `best` / `lastDate`)
-- `battleState` — `BattleState` (`squad` / `defeatedBosses` / `wins`)
+- `contestState` — `ContestState` (`cleared` / `won` / `bestScores`)
 
 On load, saved stats are merged over `INITIAL_STATE` so newly added muscles get
 defaults. **When you add a field to a persisted structure, handle old saved data
@@ -281,9 +294,11 @@ Six tabs (`TabType`), switched by the fixed bottom `.tab-container`:
   levels, a collapsible branch-evolution guide (`BRANCH_INFO`), and a static
   info modal (`selectedZukanMuscle` / `selectedZukanPhase`) showing the tapped
   form's sprite and the muscle's `MUSCLE_DETAILS`
-- `battle` (バトル) — `renderBattle`: boss selection (`BATTLE_BOSSES`) → squad
-  編成 (pick 3, showing level/branch/condition/鍛えどき) → the `BattleView`
-  turn-based fight. See the Battle system section above
+- `battle` (大会) — `renderContest`: contest selection (`CONTESTS`, with a
+  requires-gate lock and best scores) → the `ContestView` posing flow (strike
+  each mandatory pose via the キメ timing gauge, then the judging result). The
+  `TabType` id is still `'battle'`; the tab label/icon are 大会/🏅. See the
+  Contest system section above
 
 Modals (player registration / result / achievement / evolution / muscle detail
 / encyclopedia) are rendered conditionally with a priority order enforced by
