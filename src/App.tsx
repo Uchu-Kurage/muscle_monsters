@@ -3858,11 +3858,11 @@ function App() {
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>📖 筋トレ履歴</h2>
 
-          {/* 分析ダッシュボード（記録がある場合のみ） */}
-          {trainingLogs.length > 0 && renderDashboard()}
-
           {/* 草カレンダー */}
           {renderCalendar()}
+
+          {/* 分析ダッシュボード（記録がある場合のみ） */}
+          {trainingLogs.length > 0 && renderDashboard()}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
             <h3 style={{ fontSize: '1.2rem', margin: 0 }}>日別の記録</h3>
