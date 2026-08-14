@@ -1518,12 +1518,13 @@ function judgeTiming(pos: number): TimingResult {
   return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f1c' };
 }
 
-// ポーズ専用スプライトのパス。public/assets/pose_{poseId}.png（差し替え可、無ければ絵文字にフォールバック）。
+// ポーズ専用スプライトのパス。public/assets/pose_{poseId}.jpg（差し替え可、無ければ絵文字にフォールバック）。
 function getPoseSpriteSrc(poseId: string): string {
-  return `/assets/pose_${poseId}.png`;
+  return `/assets/pose_${poseId}.jpg`;
 }
 
 // ポーズ専用スプライトを表示。読み込めなければそのポーズの絵文字にフォールバックする。
+// 実写のポージング写真（縦長）なので、size を高さの上限としてアスペクト比を保って表示する。
 function PoseSprite({ pose, size }: { pose: PoseDef; size: number }) {
   const [failed, setFailed] = useState(false);
   if (failed) return <span style={{ fontSize: size * 0.66, lineHeight: 1 }} role="img" aria-label={pose.name}>{pose.emoji}</span>;
@@ -1532,7 +1533,7 @@ function PoseSprite({ pose, size }: { pose: PoseDef; size: number }) {
       src={getPoseSpriteSrc(pose.id)}
       onError={() => setFailed(true)}
       alt={pose.name}
-      style={{ width: size, height: size, imageRendering: 'pixelated' }}
+      style={{ height: size, width: 'auto', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }}
     />
   );
 }
@@ -1749,8 +1750,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
 
       {/* 今のポーズ */}
       <div style={{ textAlign: 'center', marginBottom: '0.8rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', height: '108px' }}>
-          <PoseSprite pose={currentPose} size={108} />
+        <div style={{ display: 'flex', justifyContent: 'center', height: '200px' }}>
+          <PoseSprite pose={currentPose} size={200} />
         </div>
         <div style={{ fontWeight: 'bold', fontSize: '1.05rem', color: 'var(--text-accent)' }}>{currentPose.name}</div>
         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{currentPose.hint}</div>
