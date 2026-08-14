@@ -1518,6 +1518,78 @@ function judgeTiming(pos: number): TimingResult {
   return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f1c' };
 }
 
+// ボディビル大会名物の「ヤジ（掛け声）」。キメの出来（タイミング倍率）で客席の盛り上がりが変わる。
+type HeckleTier = 'great' | 'good' | 'ok' | 'poor';
+const CONTEST_HECKLES: Record<HeckleTier, string[]> = {
+  great: [
+    'キレてるよ！キレてる！',
+    'バキバキやないかい！',
+    'デカいっ！デカすぎるぞ！',
+    '仕上がってるゥーッ！',
+    '肩にメロンが乗ってるゥ！',
+    '腹筋６LDK！',
+    '背中に鬼が宿ってるぞ！',
+    '筋肉の宝石箱や〜！',
+    '日本の環境じゃ作れない身体！',
+    'そこに山があるから！',
+    '切れ味最高ォ！',
+    'ナイスバルク！',
+  ],
+  good: [
+    'もってるねぇ〜！',
+    'ナイスカット！',
+    'いい身体だ！',
+    '大胸筋がよく動くゥ！',
+    '絞れてるぞ〜！',
+    'バランス最高！',
+    '太ももがはち切れそうだ！',
+    '筋肉が喜んでるぞ！',
+  ],
+  ok: [
+    'その調子だ〜！',
+    'まだまだいけるぞ！',
+    'もっと絞れ〜！',
+    '悪くないぞ！',
+  ],
+  poor: [
+    'ポーズが甘いぞ〜！',
+    'もっと見せてくれ！',
+    'オフシーズンか〜？',
+    '気合い入れろ〜！',
+  ],
+};
+
+// ヤジを飛ばす観客の絵文字（顔ぶれをランダムに変えて客席のにぎわいを演出）。
+const HECKLE_SPECTATORS = ['🧑', '👨', '👩', '🧔', '👴', '🙋', '🧍', '🧑‍🦱'];
+
+interface Heckle { emoji: string; text: string; }
+
+// キメ倍率からヤジのグレードを引く（judgeTiming の mult に対応）。
+function heckleTier(mult: number): HeckleTier {
+  if (mult >= 1.2) return 'great';
+  if (mult >= 1.05) return 'good';
+  if (mult >= 0.95) return 'ok';
+  return 'poor';
+}
+
+// 決めたポーズに対して客席から飛ぶヤジを1〜2個ランダムに選ぶ（重複なし）。
+function pickHeckles(mult: number): Heckle[] {
+  const pool = CONTEST_HECKLES[heckleTier(mult)];
+  const count = Math.min(pool.length, Math.random() < 0.5 ? 1 : 2);
+  const used = new Set<number>();
+  const picks: Heckle[] = [];
+  while (picks.length < count) {
+    const idx = Math.floor(Math.random() * pool.length);
+    if (used.has(idx)) continue;
+    used.add(idx);
+    picks.push({
+      emoji: HECKLE_SPECTATORS[Math.floor(Math.random() * HECKLE_SPECTATORS.length)],
+      text: pool[idx],
+    });
+  }
+  return picks;
+}
+
 // ポーズ専用スプライトのパス。public/assets/pose_{poseId}.jpg（差し替え可、無ければ絵文字にフォールバック）。
 function getPoseSpriteSrc(poseId: string): string {
   return `/assets/pose_${poseId}.jpg`;
@@ -1538,7 +1610,7 @@ function PoseSprite({ pose, size }: { pose: PoseDef; size: number }) {
   );
 }
 
-interface PoseResult { pose: PoseDef; score: number; timing: TimingResult; }
+interface PoseResult { pose: PoseDef; score: number; timing: TimingResult; heckles: Heckle[]; }
 
 // 大会のフィールド（プレイヤー＋ライバル）の1エントリ。
 interface Competitor { name: string; emoji: string; score: number; isPlayer: boolean; }
@@ -1606,7 +1678,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
     setRunning(false);
     const timing = judgeTiming(gaugePos);
     const score = scorePose(currentPose, stats, Date.now(), timing.mult);
-    const r: PoseResult = { pose: currentPose, score, timing };
+    const heckles = pickHeckles(timing.mult); // 客席からのヤジ（キメの出来で内容が変わる）
+    const r: PoseResult = { pose: currentPose, score, timing, heckles };
     setLastPose(r);
     setResults(prev => [...prev, r]);
   };
@@ -1790,6 +1863,17 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
         <button onClick={strikePose} style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}>📸 ポーズを決める！</button>
       ) : lastPose && (
         <div style={{ animation: 'popUp 0.3s ease-out' }}>
+          {/* 客席から飛ぶヤジ（掛け声） */}
+          {lastPose.heckles.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.7rem' }}>
+              {lastPose.heckles.map((h, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '1.35rem', lineHeight: 1, flexShrink: 0 }} role="img" aria-label="観客">{h.emoji}</span>
+                  <div className="heckle-bubble" style={{ animationDelay: `${i * 0.12}s` }}>{h.text}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ textAlign: 'center', marginBottom: '0.6rem' }}>
             <div style={{ color: lastPose.timing.color, fontWeight: 'bold' }}>{lastPose.timing.label}</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>+{lastPose.score}<span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}> pt</span></div>
