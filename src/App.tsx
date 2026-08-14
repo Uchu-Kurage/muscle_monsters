@@ -1519,80 +1519,92 @@ function judgeTiming(pos: number): TimingResult {
 }
 
 // ボディビル大会名物の「ヤジ（掛け声）」。キメの出来（タイミング倍率）で客席の盛り上がりが変わる。
+// muscles を持つヤジは「その部位を見せつけているポーズ」でだけ飛ぶ（例：腹筋のヤジは腹筋を見せるポーズ限定）。
 type HeckleTier = 'great' | 'good' | 'ok' | 'poor';
-const CONTEST_HECKLES: Record<HeckleTier, string[]> = {
+interface HeckleLine { text: string; muscles?: MuscleType[]; }
+const CONTEST_HECKLES: Record<HeckleTier, HeckleLine[]> = {
   great: [
-    'キレてるよ！キレてる！',
-    'バキバキやないかい！',
-    'デカいっ！デカすぎるぞ！',
-    '仕上がってるゥーッ！',
-    '肩にメロンが乗ってるゥ！',
-    '腹筋６LDK！',
-    '背中に鬼が宿ってるぞ！',
-    '筋肉の宝石箱や〜！',
-    '日本の環境じゃ作れない身体！',
-    'そこに山があるから！',
-    '切れ味最高ォ！',
-    'ナイスバルク！',
-    '背中にクリスマスツリーができてるゥ！',
-    '肩に鎧を着てるのか！',
-    '腹筋板チョコ！バキバキやぞ！',
-    '血管が浮き出てるゥ！',
-    '筋肉に無駄が無いっ！',
-    'ギリシャ彫刻がそこにいる！',
-    '重量級だァ！',
-    'セパレーションくっきり！',
-    '大胸筋が服を着てるゥ！',
-    '太ももが鉄板や〜！',
-    'お尻に顔が映るゥ！',
-    'カット深いっ！深すぎるぞ！',
-    '一年中トレーニングしてるのが分かる！',
-    '日本の宝や〜！',
-    '筋肉が喋ってるゥ！',
+    { text: 'キレてるよ！キレてる！' },
+    { text: 'バキバキやないかい！' },
+    { text: 'デカいっ！デカすぎるぞ！' },
+    { text: '仕上がってるゥーッ！' },
+    { text: '筋肉の宝石箱や〜！' },
+    { text: '日本の環境じゃ作れない身体！' },
+    { text: 'そこに山があるから！' },
+    { text: '切れ味最高ォ！' },
+    { text: 'ナイスバルク！' },
+    { text: '血管が浮き出てるゥ！' },
+    { text: '筋肉に無駄が無いっ！' },
+    { text: 'ギリシャ彫刻がそこにいる！' },
+    { text: '重量級だァ！' },
+    { text: 'セパレーションくっきり！' },
+    { text: 'カット深いっ！深すぎるぞ！' },
+    { text: '一年中トレーニングしてるのが分かる！' },
+    { text: '日本の宝や〜！' },
+    { text: '筋肉が喋ってるゥ！' },
+    // 部位固有
+    { text: '肩にメロンが乗ってるゥ！', muscles: ['shoulder'] },
+    { text: '肩に鎧を着てるのか！', muscles: ['shoulder'] },
+    { text: '腹筋６LDK！', muscles: ['abs'] },
+    { text: '腹筋板チョコ！バキバキやぞ！', muscles: ['abs'] },
+    { text: '背中に鬼が宿ってるぞ！', muscles: ['back'] },
+    { text: '背中にクリスマスツリーができてるゥ！', muscles: ['back', 'erector_spinae'] },
+    { text: '大胸筋が服を着てるゥ！', muscles: ['chest'] },
+    { text: '太ももが鉄板や〜！', muscles: ['legs'] },
+    { text: 'お尻に顔が映るゥ！', muscles: ['glutes', 'hamstrings'] },
+    { text: '僧帽筋が耳まで来てるゥ！', muscles: ['trapezius'] },
+    { text: '力こぶがボウリング玉や〜！', muscles: ['biceps'] },
+    { text: '三頭が蹄鉄みたいだ！', muscles: ['triceps'] },
   ],
   good: [
-    'もってるねぇ〜！',
-    'ナイスカット！',
-    'いい身体だ！',
-    '大胸筋がよく動くゥ！',
-    '絞れてるぞ〜！',
-    'バランス最高！',
-    '太ももがはち切れそうだ！',
-    '筋肉が喜んでるぞ！',
-    'ナイスセパレーション！',
-    '広背筋に羽が生えてる！',
-    '肩に玉ねぎ乗ってるぞ！',
-    '仕上がってきたなァ！',
-    'ディテールいいぞ〜！',
-    '彫刻のようだ！',
-    '締まってる締まってる！',
-    'ナイスシェイプ！',
-    '肩がまん丸だ！',
-    '背中で語ってるゥ！',
+    { text: 'もってるねぇ〜！' },
+    { text: 'ナイスカット！' },
+    { text: 'いい身体だ！' },
+    { text: '絞れてるぞ〜！' },
+    { text: 'バランス最高！' },
+    { text: '筋肉が喜んでるぞ！' },
+    { text: 'ナイスセパレーション！' },
+    { text: '仕上がってきたなァ！' },
+    { text: 'ディテールいいぞ〜！' },
+    { text: '彫刻のようだ！' },
+    { text: '締まってる締まってる！' },
+    { text: 'ナイスシェイプ！' },
+    // 部位固有
+    { text: '大胸筋がよく動くゥ！', muscles: ['chest'] },
+    { text: '太ももがはち切れそうだ！', muscles: ['legs'] },
+    { text: '広背筋に羽が生えてる！', muscles: ['back'] },
+    { text: '肩に玉ねぎ乗ってるぞ！', muscles: ['shoulder'] },
+    { text: '肩がまん丸だ！', muscles: ['shoulder'] },
+    { text: '背中で語ってるゥ！', muscles: ['back'] },
+    { text: '腹筋のキレいいぞ〜！', muscles: ['abs'] },
+    { text: '力こぶ盛り上がってるゥ！', muscles: ['biceps'] },
   ],
   ok: [
-    'その調子だ〜！',
-    'まだまだいけるぞ！',
-    'もっと絞れ〜！',
-    '悪くないぞ！',
-    'あと一絞りだ！',
-    'ポテンシャル感じるぞ！',
-    'いい線いってる！',
-    '来年に期待だ！',
+    { text: 'その調子だ〜！' },
+    { text: 'まだまだいけるぞ！' },
+    { text: 'もっと絞れ〜！' },
+    { text: '悪くないぞ！' },
+    { text: 'あと一絞りだ！' },
+    { text: 'ポテンシャル感じるぞ！' },
+    { text: 'いい線いってる！' },
+    { text: '来年に期待だ！' },
   ],
   poor: [
-    'ポーズが甘いぞ〜！',
-    'もっと見せてくれ！',
-    'オフシーズンか〜？',
-    '気合い入れろ〜！',
-    '力を抜くな〜！',
-    '締まりが足りないぞ！',
-    'まだ絞れる！絞れるぞ！',
-    '小さく前へならえ！',
-    'もっと胸を張れ〜！',
-    '本気を出せ〜！',
+    { text: 'ポーズが甘いぞ〜！' },
+    { text: 'もっと見せてくれ！' },
+    { text: 'オフシーズンか〜？' },
+    { text: '気合い入れろ〜！' },
+    { text: '力を抜くな〜！' },
+    { text: '締まりが足りないぞ！' },
+    { text: 'まだ絞れる！絞れるぞ！' },
+    { text: '小さく前へならえ！' },
+    { text: 'もっと胸を張れ〜！' },
+    { text: '本気を出せ〜！' },
   ],
 };
+
+// そのポーズで「見せつけている」部位（審査員に強くアピールしている部位）。重みが大きいものだけを対象にする。
+const POSE_SHOWCASE_WEIGHT = 0.4;
 
 // ヤジを飛ばす観客の絵文字（顔ぶれをランダムに変えて客席のにぎわいを演出）。
 const HECKLE_SPECTATORS = ['🧑', '👨', '👩', '🧔', '👴', '👵', '🙋', '🧍', '🧑‍🦱', '👨‍🦲', '🧑‍🦰', '🤙', '📣', '👏'];
@@ -1608,8 +1620,14 @@ function heckleTier(mult: number): HeckleTier {
 }
 
 // 決めたポーズに対して客席から飛ぶヤジを1〜2個ランダムに選ぶ（重複なし）。
-function pickHeckles(mult: number): Heckle[] {
-  const pool = CONTEST_HECKLES[heckleTier(mult)];
+// 部位固有のヤジ（muscles 指定あり）は、そのポーズが見せつけている部位のときだけ候補に入れる。
+function pickHeckles(mult: number, pose: PoseDef): Heckle[] {
+  const showcased = new Set(
+    pose.displays.filter(d => d.weight >= POSE_SHOWCASE_WEIGHT).map(d => d.muscle)
+  );
+  const pool = CONTEST_HECKLES[heckleTier(mult)].filter(
+    h => !h.muscles || h.muscles.some(m => showcased.has(m))
+  );
   const count = Math.min(pool.length, Math.random() < 0.5 ? 1 : 2);
   const used = new Set<number>();
   const picks: Heckle[] = [];
@@ -1619,7 +1637,7 @@ function pickHeckles(mult: number): Heckle[] {
     used.add(idx);
     picks.push({
       emoji: HECKLE_SPECTATORS[Math.floor(Math.random() * HECKLE_SPECTATORS.length)],
-      text: pool[idx],
+      text: pool[idx].text,
     });
   }
   return picks;
@@ -1713,7 +1731,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
     setRunning(false);
     const timing = judgeTiming(gaugePos);
     const score = scorePose(currentPose, stats, Date.now(), timing.mult);
-    const heckles = pickHeckles(timing.mult); // 客席からのヤジ（キメの出来で内容が変わる）
+    const heckles = pickHeckles(timing.mult, currentPose); // 客席からのヤジ（キメの出来と見せる部位で内容が変わる）
     const r: PoseResult = { pose: currentPose, score, timing, heckles };
     setLastPose(r);
     setResults(prev => [...prev, r]);
