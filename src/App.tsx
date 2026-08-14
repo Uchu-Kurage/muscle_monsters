@@ -1457,6 +1457,12 @@ function getContest(id: string): Contest {
   return CONTESTS.find(c => c.id === id) ?? CONTESTS[0];
 }
 
+// 大会の格（0=地区 … 3=世界）。CONTESTS の並び順がそのまま格の高さになる。ヤジの解禁判定に使う。
+function getContestTier(contest: Contest): number {
+  const idx = CONTESTS.findIndex(c => c.id === contest.id);
+  return idx < 0 ? 0 : idx;
+}
+
 // 永続データ。旧セーブには無いので読み込み時に INITIAL_CONTEST_STATE で埋める。
 interface ContestState {
   cleared: string[];                  // 入賞（クリア）した大会ID
@@ -1520,10 +1526,13 @@ function judgeTiming(pos: number): TimingResult {
 
 // ボディビル大会名物の「ヤジ（掛け声）」。キメの出来（タイミング倍率）で客席の盛り上がりが変わる。
 // muscles を持つヤジは「その部位を見せつけているポーズ」でだけ飛ぶ（例：腹筋のヤジは腹筋を見せるポーズ限定）。
+// minTier を持つヤジは「その格以上の大会」でだけ飛ぶ（0=地区/1=都道府県/2=全国/3=世界）。
+// 目の肥えた観客が集まる上位大会ほど専門的・熱狂的なヤジが増え、地区大会は素朴な声援が中心になる。
 type HeckleTier = 'great' | 'good' | 'ok' | 'poor';
-interface HeckleLine { text: string; muscles?: MuscleType[]; }
+interface HeckleLine { text: string; muscles?: MuscleType[]; minTier?: number; }
 const CONTEST_HECKLES: Record<HeckleTier, HeckleLine[]> = {
   great: [
+    // 全大会共通（素朴な絶賛）
     { text: 'キレてるよ！キレてる！' },
     { text: 'バキバキやないかい！' },
     { text: 'デカいっ！デカすぎるぞ！' },
@@ -1533,15 +1542,31 @@ const CONTEST_HECKLES: Record<HeckleTier, HeckleLine[]> = {
     { text: 'そこに山があるから！' },
     { text: '切れ味最高ォ！' },
     { text: 'ナイスバルク！' },
-    { text: '血管が浮き出てるゥ！' },
-    { text: '筋肉に無駄が無いっ！' },
-    { text: 'ギリシャ彫刻がそこにいる！' },
     { text: '重量級だァ！' },
-    { text: 'セパレーションくっきり！' },
-    { text: 'カット深いっ！深すぎるぞ！' },
-    { text: '一年中トレーニングしてるのが分かる！' },
     { text: '日本の宝や〜！' },
     { text: '筋肉が喋ってるゥ！' },
+    // 都道府県以上（少し玄人向け）
+    { text: '血管が浮き出てるゥ！', minTier: 1 },
+    { text: '筋肉に無駄が無いっ！', minTier: 1 },
+    { text: 'ギリシャ彫刻がそこにいる！', minTier: 1 },
+    { text: 'セパレーションくっきり！', minTier: 1 },
+    { text: 'カット深いっ！深すぎるぞ！', minTier: 1 },
+    { text: '一年中トレーニングしてるのが分かる！', minTier: 1 },
+    // 全国以上（目の肥えた観客の上級ヤジ）
+    { text: 'ストリエーション出てるゥ！', minTier: 2 },
+    { text: 'ディセクション完璧だァ！', minTier: 2 },
+    { text: 'マッスルグレインが浮いてるゥ！', minTier: 2 },
+    { text: 'この分離度、教科書に載るぞ！', minTier: 2 },
+    { text: 'ドライさが尋常じゃないっ！', minTier: 2 },
+    { text: 'アウトライン完成されてるゥ！', minTier: 2 },
+    { text: 'コンディション仕上がりすぎィ！', minTier: 2 },
+    // 世界選手権限定（人類の頂点への賛辞）
+    { text: '人類の到達点や〜！', minTier: 3 },
+    { text: 'ミスターオリンピア級だァ！', minTier: 3 },
+    { text: '神の彫刻がそこにいるゥ！', minTier: 3 },
+    { text: '世界が震えるバルクゥ！', minTier: 3 },
+    { text: '筋肉の完成形ォ！', minTier: 3 },
+    { text: '歴史が変わる仕上がりだァ！', minTier: 3 },
     // 部位固有
     { text: '肩にメロンが乗ってるゥ！', muscles: ['shoulder'] },
     { text: '肩に鎧を着てるのか！', muscles: ['shoulder'] },
@@ -1555,20 +1580,26 @@ const CONTEST_HECKLES: Record<HeckleTier, HeckleLine[]> = {
     { text: '僧帽筋が耳まで来てるゥ！', muscles: ['trapezius'] },
     { text: '力こぶがボウリング玉や〜！', muscles: ['biceps'] },
     { text: '三頭が蹄鉄みたいだ！', muscles: ['triceps'] },
+    // 部位固有・上級（全国以上）
+    { text: '広背筋のクリスマスツリー完璧ゥ！', muscles: ['back', 'erector_spinae'], minTier: 2 },
+    { text: '腹筋のクロスストリエーション出たァ！', muscles: ['abs'], minTier: 2 },
+    { text: '大腿四頭のカット、鳥肌ものォ！', muscles: ['legs'], minTier: 2 },
   ],
   good: [
+    // 全大会共通
     { text: 'もってるねぇ〜！' },
     { text: 'ナイスカット！' },
     { text: 'いい身体だ！' },
     { text: '絞れてるぞ〜！' },
     { text: 'バランス最高！' },
     { text: '筋肉が喜んでるぞ！' },
-    { text: 'ナイスセパレーション！' },
-    { text: '仕上がってきたなァ！' },
-    { text: 'ディテールいいぞ〜！' },
-    { text: '彫刻のようだ！' },
     { text: '締まってる締まってる！' },
     { text: 'ナイスシェイプ！' },
+    // 都道府県以上（玄人向け）
+    { text: 'ナイスセパレーション！', minTier: 1 },
+    { text: '仕上がってきたなァ！', minTier: 1 },
+    { text: 'ディテールいいぞ〜！', minTier: 1 },
+    { text: '彫刻のようだ！', minTier: 1 },
     // 部位固有
     { text: '大胸筋がよく動くゥ！', muscles: ['chest'] },
     { text: '太ももがはち切れそうだ！', muscles: ['legs'] },
@@ -1621,12 +1652,13 @@ function heckleTier(mult: number): HeckleTier {
 
 // 決めたポーズに対して客席から飛ぶヤジを1〜2個ランダムに選ぶ（重複なし）。
 // 部位固有のヤジ（muscles 指定あり）は、そのポーズが見せつけている部位のときだけ候補に入れる。
-function pickHeckles(mult: number, pose: PoseDef): Heckle[] {
+// 上級ヤジ（minTier 指定あり）は、その格以上の大会でだけ候補に入れる。
+function pickHeckles(mult: number, pose: PoseDef, tier: number): Heckle[] {
   const showcased = new Set(
     pose.displays.filter(d => d.weight >= POSE_SHOWCASE_WEIGHT).map(d => d.muscle)
   );
   const pool = CONTEST_HECKLES[heckleTier(mult)].filter(
-    h => !h.muscles || h.muscles.some(m => showcased.has(m))
+    h => (!h.muscles || h.muscles.some(m => showcased.has(m))) && (h.minTier ?? 0) <= tier
   );
   const count = Math.min(pool.length, Math.random() < 0.5 ? 1 : 2);
   const used = new Set<number>();
@@ -1684,6 +1716,7 @@ interface ContestViewProps {
 // 1回の大会ごとに親が key を変えて作り直す前提。
 function ContestView({ contest, poses, stats, balance, playerName, alreadyCleared, alreadyWon, onFinish, onExit }: ContestViewProps) {
   const displayName = playerName || 'あなた';
+  const contestTier = getContestTier(contest); // 大会の格（上級ヤジの解禁判定に使う）
   const [poseIndex, setPoseIndex] = useState(0);
   const [gaugePos, setGaugePos] = useState(0);
   const [running, setRunning] = useState(true); // ゲージ稼働中（＝まだキメていない）
@@ -1731,7 +1764,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
     setRunning(false);
     const timing = judgeTiming(gaugePos);
     const score = scorePose(currentPose, stats, Date.now(), timing.mult);
-    const heckles = pickHeckles(timing.mult, currentPose); // 客席からのヤジ（キメの出来と見せる部位で内容が変わる）
+    const heckles = pickHeckles(timing.mult, currentPose, contestTier); // 客席からのヤジ（キメの出来・見せる部位・大会の格で内容が変わる）
     const r: PoseResult = { pose: currentPose, score, timing, heckles };
     setLastPose(r);
     setResults(prev => [...prev, r]);
