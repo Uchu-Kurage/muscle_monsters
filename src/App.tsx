@@ -1411,13 +1411,13 @@ const CONTESTS: Contest[] = [
     emoji: '🥈',
     flavor: '地区を勝ち上がった者たちの戦い。背中の見せ場も加わる。',
     poses: ['front_double_biceps', 'front_lat_spread', 'side_chest', 'back_double_biceps', 'abdominals_thighs'],
-    passLine: 150,
-    winLine: 230,
+    passLine: 95,
+    winLine: 155,
     clearTitleId: 'clear_ken',
     requires: 'chiku',
     rivals: [
-      { name: '県代表・鬼塚', emoji: '😎', comment: '県の看板、背負ってんだ。', baseScore: 145 },
-      { name: 'ベテラン・松岡', emoji: '🧔', comment: '経験の差、見せてやるよ。', baseScore: 215 },
+      { name: '県代表・鬼塚', emoji: '😎', comment: '県の看板、背負ってんだ。', baseScore: 90 },
+      { name: 'ベテラン・松岡', emoji: '🧔', comment: '経験の差、見せてやるよ。', baseScore: 150 },
     ],
   },
   {
