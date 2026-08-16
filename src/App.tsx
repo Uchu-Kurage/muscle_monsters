@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
@@ -1790,6 +1790,109 @@ function buildJudgeReport(
   return { sections, summary };
 }
 
+// 詳細レポート（別画面）用のデータ。計算式の内訳・部位ごとの影響・次の一手を、
+// 実際の採点ロジック（scorePose と同じ式）から算出する純粋関数。
+interface PoseBreakdown {
+  pose: PoseDef;
+  levelSum: number;      // 筋量＝Σ(レベル×重み)
+  finishFactor: number;  // 仕上がり＝見せた部位の仕上がり係数の加重平均
+  timingMult: number;    // キメ＝ポージングのタイミング倍率
+  score: number;         // ポーズ得点＝round(筋量×仕上がり×キメ)
+}
+interface MuscleImpact {
+  muscle: MuscleType;
+  name: string;
+  level: number;
+  condition: number;
+  tier: ConditionTier;   // 調子の段階
+  finish: number;        // 仕上がり係数
+  totalWeight: number;   // この大会で見られる審査重みの合計
+  kinryo: number;        // 筋量貢献＝レベル×審査重み合計
+  perLevel: number;      // +1レベルで伸びる推定得点（今回の仕上がり・キメ・バランスで換算）
+  recovering: boolean;   // オーバーワーク中（仕上がり減）
+  superComp: boolean;    // 鍛えどき（仕上がり増）
+}
+interface DetailReport {
+  poseBreakdowns: PoseBreakdown[];
+  rawTotal: number;
+  balanceFactor: number;
+  finalTotal: number;
+  muscles: MuscleImpact[];        // 筋量貢献の降順
+  growPicks: MuscleImpact[];      // 育成おすすめ（+1レベルの得点効率が高い順）
+  conditionPicks: MuscleImpact[]; // 調子を上げると伸びる部位
+  weakGroupTitle: string;         // 最も弱い部位グループ（バランスの弱点）
+}
+
+function buildDetailReport(
+  poses: PoseDef[],
+  results: PoseResult[],
+  stats: AppState,
+  balanceFactor: number,
+  now: number,
+): DetailReport {
+  // ポーズごとの内訳（scorePose と同じ計算を再現し、途中の値を取り出す）。
+  const poseBreakdowns: PoseBreakdown[] = results.map(r => {
+    let levelSum = 0, finishWeighted = 0, weightSum = 0;
+    for (const d of r.pose.displays) {
+      const ms = stats[d.muscle];
+      if (!ms) continue;
+      levelSum += ms.level * d.weight;
+      finishWeighted += getMuscleFinish(ms, d.muscle, now) * d.weight;
+      weightSum += d.weight;
+    }
+    const finishFactor = weightSum > 0 ? finishWeighted / weightSum : 1;
+    return { pose: r.pose, levelSum, finishFactor, timingMult: r.timing.mult, score: r.score };
+  });
+  const rawTotal = poseBreakdowns.reduce((a, b) => a + b.score, 0);
+  const finalTotal = Math.round(rawTotal * balanceFactor);
+
+  // この大会で審査対象になった部位ごとの影響。
+  const shown = Array.from(new Set(poses.flatMap(p => p.displays.map(d => d.muscle))));
+  const muscles: MuscleImpact[] = shown.map(m => {
+    const ms = stats[m];
+    const level = ms?.level ?? 1;
+    const condition = ms?.condition ?? DEFAULT_CONDITION;
+    let totalWeight = 0, perLevel = 0;
+    for (const b of poseBreakdowns) {
+      const d = b.pose.displays.find(x => x.muscle === m);
+      if (!d) continue;
+      totalWeight += d.weight;
+      // +1レベルの限界得点＝Σ(重み×そのポーズの仕上がり×キメ)×バランス。
+      perLevel += d.weight * b.finishFactor * b.timingMult;
+    }
+    return {
+      muscle: m,
+      name: MUSCLE_NAMES[m],
+      level,
+      condition,
+      tier: getConditionTier(condition),
+      finish: ms ? getMuscleFinish(ms, m, now) : 1,
+      totalWeight,
+      kinryo: level * totalWeight,
+      perLevel: perLevel * balanceFactor,
+      recovering: ms ? isMuscleRecoveringNow(ms, m, now) : false,
+      superComp: ms ? isMuscleSuperCompNow(ms, m, now) : false,
+    };
+  }).sort((a, b) => b.kinryo - a.kinryo);
+
+  // 育成おすすめ：+1レベルの得点効率が高い順（今回の条件での限界得点）。
+  const growPicks = [...muscles].sort((a, b) => b.perLevel - a.perLevel).slice(0, 3);
+  // 調子アドバイス：好調(65)未満で、審査重みが大きい部位ほど伸びしろが大きい。
+  const conditionPicks = muscles
+    .filter(mi => mi.condition < 65)
+    .sort((a, b) => b.totalWeight - a.totalWeight)
+    .slice(0, 3);
+
+  // バランスの弱点＝平均レベルが最も低い部位グループ。
+  const groupAvgs = MUSCLE_GROUPS.map(g => ({
+    title: g.title,
+    avg: g.muscles.reduce((a, m) => a + (stats[m]?.level ?? 1), 0) / g.muscles.length,
+  }));
+  const weak = groupAvgs.reduce((a, b) => (b.avg < a.avg ? b : a));
+
+  return { poseBreakdowns, rawTotal, balanceFactor, finalTotal, muscles, growPicks, conditionPicks, weakGroupTitle: weak.title };
+}
+
 interface ContestViewProps {
   contest: Contest;
   poses: PoseDef[];
@@ -1812,7 +1915,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   const [running, setRunning] = useState(true); // ゲージ稼働中（＝まだキメていない）
   const [results, setResults] = useState<PoseResult[]>([]);
   const [lastPose, setLastPose] = useState<PoseResult | null>(null);
-  const [phase, setPhase] = useState<'opening' | 'posing' | 'result'>('opening');
+  const [phase, setPhase] = useState<'opening' | 'posing' | 'result' | 'detail'>('opening');
   const [finalTotal, setFinalTotal] = useState(0);
   const [placement, setPlacement] = useState<'win' | 'pass' | 'fail'>('fail');
   const [ranking, setRanking] = useState<Competitor[]>([]);
@@ -2003,7 +2106,119 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           </div>
         )}
 
+        <button onClick={() => setPhase('detail')} className="tab-button" style={{ width: '100%', marginBottom: '0.5rem' }}>📊 詳細レポートを見る</button>
         <button onClick={onExit} style={{ width: '100%' }}>もどる</button>
+      </div>
+    );
+  }
+
+  // ===== 詳細レポート（別画面）=====
+  // 計算式の内訳・部位ごとの影響・次の一手を見せ、ユーザーが「次に何を鍛えるか」を考察できるようにする。
+  if (phase === 'detail') {
+    const detail = buildDetailReport(poses, results, stats, balance.factor, Date.now());
+    const maxKinryo = Math.max(1, ...detail.muscles.map(m => m.kinryo));
+    const fmt = (n: number) => (Math.round(n * 10) / 10).toString(); // 小数第1位まで
+    return (
+      <div className="glass-panel" style={{ marginTop: 0 }}>
+        <h2 style={{ textAlign: 'center', color: 'var(--text-accent)', marginBottom: '0.3rem' }}>📊 詳細レポート</h2>
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '1rem' }}>
+          得点の内訳と、次に伸ばすと効く部位を分析します。
+        </div>
+
+        {/* 計算式 */}
+        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>🧮 得点の計算式</div>
+          <div style={{ fontSize: '0.7rem', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+            総合スコア＝<b style={{ color: 'var(--text-primary)' }}>Σ(各ポーズ得点)</b>×<b style={{ color: balance.color }}>全身バランス</b><br />
+            ポーズ得点＝<b style={{ color: '#00e5ff' }}>筋量</b>(Σ レベル×重み)×<b style={{ color: '#39ff14' }}>仕上がり</b>(調子・鍛えどき)×<b style={{ color: '#ffd23f' }}>キメ</b>(タイミング)
+          </div>
+          {/* ポーズ別の内訳 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '0.2rem 0.4rem', fontSize: '0.68rem', alignItems: 'center' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>ポーズ</span>
+            <span style={{ color: '#00e5ff', textAlign: 'right' }}>筋量</span>
+            <span style={{ color: '#39ff14', textAlign: 'right' }}>仕上</span>
+            <span style={{ color: '#ffd23f', textAlign: 'right' }}>キメ</span>
+            <span style={{ textAlign: 'right' }}>得点</span>
+            {detail.poseBreakdowns.map((b, i) => (
+              <Fragment key={i}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.pose.emoji} {b.pose.name}</span>
+                <span style={{ textAlign: 'right' }}>{fmt(b.levelSum)}</span>
+                <span style={{ textAlign: 'right' }}>×{b.finishFactor.toFixed(2)}</span>
+                <span style={{ textAlign: 'right' }}>×{b.timingMult.toFixed(2)}</span>
+                <b style={{ textAlign: 'right', color: 'var(--text-accent)' }}>{b.score}</b>
+              </Fragment>
+            ))}
+          </div>
+          <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.12)', fontSize: '0.72rem', textAlign: 'right' }}>
+            ポーズ合計 <b>{detail.rawTotal}</b> × バランス <span style={{ color: balance.color }}>×{detail.balanceFactor.toFixed(2)}</span> ＝ 総合 <b style={{ color: 'var(--text-accent)' }}>{detail.finalTotal}</b>
+          </div>
+        </div>
+
+        {/* 部位ごとの影響 */}
+        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.2rem' }}>💪 部位ごとの影響</div>
+          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+            筋量貢献＝レベル×審査重み。バーが長い部位ほど今回の得点を支えている。
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {detail.muscles.map(mi => (
+              <div key={mi.muscle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '0.72rem', marginBottom: '0.15rem' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {mi.name} <span style={{ color: 'var(--text-secondary)' }}>Lv{mi.level}</span>
+                    <span style={{ color: mi.tier.color, marginLeft: '0.3rem' }}>{mi.tier.emoji}{mi.tier.label}</span>
+                    {mi.superComp && <span style={{ color: '#39ff14', marginLeft: '0.2rem' }}>⚡</span>}
+                    {mi.recovering && <span style={{ color: '#ff9f1c', marginLeft: '0.2rem' }}>💤</span>}
+                  </span>
+                  <span style={{ flexShrink: 0, color: 'var(--text-secondary)' }}>
+                    重み{fmt(mi.totalWeight)}・<b style={{ color: 'var(--text-primary)' }}>筋量{fmt(mi.kinryo)}</b>
+                  </span>
+                </div>
+                <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)' }}>
+                  <div style={{ height: '100%', borderRadius: '3px', width: `${(mi.kinryo / maxKinryo) * 100}%`, background: mi.tier.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 考察：次の一手 */}
+        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>🔎 考察：次の一手</div>
+
+          <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
+            <div style={{ color: '#00e5ff', fontWeight: 'bold', marginBottom: '0.25rem' }}>📈 育てると効く部位</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>今回の条件で +1レベルあたりの得点効率が高い順。</div>
+            {detail.growPicks.map(mi => (
+              <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
+                <span>{mi.name}<span style={{ color: 'var(--text-secondary)' }}> Lv{mi.level}</span></span>
+                <span style={{ color: '#00e5ff' }}>+1Lvで約 +{Math.max(1, Math.round(mi.perLevel))}pt</span>
+              </div>
+            ))}
+          </div>
+
+          {detail.conditionPicks.length > 0 && (
+            <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
+              <div style={{ color: '#39ff14', fontWeight: 'bold', marginBottom: '0.25rem' }}>🔥 調子を上げると伸びる部位</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>好調に届いていない主力部位。トレ後の休養と適時トレで仕上がりが伸びる。</div>
+              {detail.conditionPicks.map(mi => (
+                <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
+                  <span>{mi.name}</span>
+                  <span style={{ color: mi.tier.color }}>{mi.tier.emoji}{mi.tier.label}（仕上がり×{mi.finish.toFixed(2)}）</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: '0.72rem' }}>
+            <div style={{ color: '#ffd23f', fontWeight: 'bold', marginBottom: '0.25rem' }}>⚖️ バランスの弱点</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem' }}>
+              最も手薄なのは <b style={{ color: 'var(--text-primary)' }}>{groupLabel(detail.weakGroupTitle)}</b>。ここを底上げすると全身バランス係数が上がり、全ポーズの得点が底上げされる。
+            </div>
+          </div>
+        </div>
+
+        <button onClick={() => setPhase('result')} style={{ width: '100%' }}>◀ 結果にもどる</button>
       </div>
     );
   }
