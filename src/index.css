@@ -344,7 +344,8 @@ input:focus, select:focus {
 }
 
 /* ===== ボディビル大会（コンテスト）画面 ===== */
-/* キメゲージ：中央の「キレゾーン」でマーカーを止めるとポージング倍率が上がる。 */
+/* キメゲージ：緑の「キレゾーン」でマーカーを止めるとポージング倍率が上がる。
+   ゾーンの幅・位置・移動・数は大会の格に応じて App.tsx 側でインライン描画する（難易度）。 */
 .contest-gauge {
   position: relative;
   width: 100%;
@@ -355,7 +356,7 @@ input:focus, select:focus {
   overflow: hidden;
 }
 
-/* 中央のキレゾーン（緑）。judgeTiming の「キレッキレ」帯（±7）に対応。 */
+/* 旧・中央固定のキレゾーン。現在は App.tsx が難易度に応じてゾーンをインライン描画するため未使用。 */
 .contest-gauge-zone {
   position: absolute;
   left: 43%;

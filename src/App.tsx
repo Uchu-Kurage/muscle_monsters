@@ -1514,13 +1514,64 @@ function getBalanceInfo(stats: AppState): { factor: number; label: string; color
   return { factor, label: '弱点あり', color: '#ff9f1c' };
 }
 
-// キメ（ポージング）タイミングの判定。ゲージ中央(50)にどれだけ近いかでキレ倍率が決まる。
+// キメ（ポージング）ミニゲームの難易度。大会の格が上がるほどキレゾーンが細く・
+// 位置がランダムに・動くように・数が増える。マーカーの往復も速くなる。
+interface GaugeDifficulty {
+  halfWidth: number;   // キレゾーンの半幅（%）。小さいほどシビア。
+  goodMargin: number;  // 「ナイス」帯の追加幅
+  okMargin: number;    // 「まずまず」帯の追加幅
+  zoneCount: number;   // 判定ゾーンの数（複数ならどれかに合わせればOK）
+  randomPos: boolean;  // ゾーン位置をランダムにするか（false＝中央固定）
+  moveAmp: number;     // ゾーンの移動振幅（0＝動かない）
+  moveSpeed: number;   // ゾーンの移動速度
+  markerSpeed: number; // マーカーの往復速度（%/tick, 30msごと）
+  stars: number;       // 難易度表示の★の数
+}
+
+// 大会の格（0=地区 / 1=都道府県 / 2=全国 / 3=世界）ごとの難易度。段階的に要素が増える。
+function getGaugeDifficulty(tier: number): GaugeDifficulty {
+  switch (tier) {
+    case 0:  return { halfWidth: 13, goodMargin: 10, okMargin: 15, zoneCount: 1, randomPos: false, moveAmp: 0,  moveSpeed: 0,   markerSpeed: 4, stars: 1 };
+    case 1:  return { halfWidth: 9,  goodMargin: 9,  okMargin: 13, zoneCount: 1, randomPos: true,  moveAmp: 0,  moveSpeed: 0,   markerSpeed: 5, stars: 2 };
+    case 2:  return { halfWidth: 8,  goodMargin: 8,  okMargin: 12, zoneCount: 1, randomPos: true,  moveAmp: 16, moveSpeed: 1.2, markerSpeed: 6, stars: 3 };
+    default: return { halfWidth: 6,  goodMargin: 7,  okMargin: 11, zoneCount: 2, randomPos: true,  moveAmp: 22, moveSpeed: 1.8, markerSpeed: 7, stars: 4 };
+  }
+}
+
+// ポーズ開始時に決まる判定ゾーンの基準（中央位置と移動用の位相）。
+interface GaugeZone { base: number; phase: number; }
+
+// ゾーンを生成。ランダム配置時は 15〜85% を数で等分し、各区間内でランダムに置く（重ならない）。
+function generateGaugeZones(diff: GaugeDifficulty): GaugeZone[] {
+  const n = diff.zoneCount;
+  const zones: GaugeZone[] = [];
+  for (let i = 0; i < n; i++) {
+    let base: number;
+    if (!diff.randomPos && n === 1) base = 50;
+    else {
+      const lo = 15 + (70 / n) * i;
+      const hi = 15 + (70 / n) * (i + 1);
+      base = lo + Math.random() * (hi - lo);
+    }
+    zones.push({ base, phase: Math.random() * Math.PI * 2 });
+  }
+  return zones;
+}
+
+// フレーム時点でのゾーン中央位置（動くゾーンは sin で往復。端に寄りすぎないようクランプ）。
+function gaugeZoneCenter(zone: GaugeZone, frame: number, diff: GaugeDifficulty): number {
+  if (diff.moveAmp <= 0) return zone.base;
+  const c = zone.base + diff.moveAmp * Math.sin(frame * diff.moveSpeed * 0.05 + zone.phase);
+  return Math.max(6, Math.min(94, c));
+}
+
+// キメの判定。最も近いゾーン中央からの距離でキレ倍率が決まる（帯の幅は難易度依存）。
 interface TimingResult { mult: number; label: string; color: string; }
-function judgeTiming(pos: number): TimingResult {
-  const d = Math.abs(pos - 50);
-  if (d <= 7) return { mult: 1.2, label: 'キレッキレ！ ⚡', color: '#39ff14' };
-  if (d <= 18) return { mult: 1.05, label: 'ナイスポーズ！', color: '#00e5ff' };
-  if (d <= 32) return { mult: 0.95, label: 'まずまず', color: '#ffd23f' };
+function judgeTimingAt(pos: number, centers: number[], diff: GaugeDifficulty): TimingResult {
+  const d = Math.min(...centers.map(c => Math.abs(pos - c)));
+  if (d <= diff.halfWidth) return { mult: 1.2, label: 'キレッキレ！ ⚡', color: '#39ff14' };
+  if (d <= diff.halfWidth + diff.goodMargin) return { mult: 1.05, label: 'ナイスポーズ！', color: '#00e5ff' };
+  if (d <= diff.halfWidth + diff.goodMargin + diff.okMargin) return { mult: 0.95, label: 'まずまず', color: '#ffd23f' };
   return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f1c' };
 }
 
@@ -1642,7 +1693,7 @@ const HECKLE_SPECTATORS = ['🧑', '👨', '👩', '🧔', '👴', '👵', '🙋
 
 interface Heckle { emoji: string; text: string; }
 
-// キメ倍率からヤジのグレードを引く（judgeTiming の mult に対応）。
+// キメ倍率からヤジのグレードを引く（judgeTimingAt の mult に対応）。
 function heckleTier(mult: number): HeckleTier {
   if (mult >= 1.2) return 'great';
   if (mult >= 1.05) return 'good';
@@ -1784,7 +1835,7 @@ function buildJudgeReport(
     weakest.axis === '筋量' ? 'トレーニングのボリュームを増やし、全体のレベル底上げを狙おう。'
     : weakest.axis === '仕上がり' ? '大会前はコンディションを整え、鍛えどきを逃さず仕上げて臨もう。'
     : weakest.axis === 'バランス' ? `弱点の${groupLabel(weak.title)}を重点的に鍛え、全身の均整を高めよう。`
-    : 'キメのタイミング（中央のキレゾーン）を磨けば、同じ肉体でも得点が伸びる。';
+    : 'キメのタイミング（緑のキレゾーン）を磨けば、同じ肉体でも得点が伸びる。';
   const summary = `${groupLabel(strong.title)}の仕上がりは特に印象的だった。${advice}`;
 
   return { sections, summary };
@@ -1962,28 +2013,38 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
     }))
   );
 
-  // キメゲージ：0〜100を往復させる。キメる（running=false）と止まる。
+  // キメミニゲームの難易度（大会の格で決まる）と、ポーズごとに生成する判定ゾーン。
+  const gaugeDiff = useMemo(() => getGaugeDifficulty(contestTier), [contestTier]);
+  // ポーズが変わるたびにゾーンを引き直す（位置・移動位相をランダムに）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const gaugeZones = useMemo(() => generateGaugeZones(gaugeDiff), [poseIndex, gaugeDiff]);
+  const [frame, setFrame] = useState(0); // ゾーン移動用のアニメーションフレーム
+
+  // キメゲージ：0〜100を往復させる。キメる（running=false）と止まる。動くゾーンはフレームも進める。
   useEffect(() => {
     if (phase !== 'posing' || !running) return;
     let dir = 1;
     const id = setInterval(() => {
       setGaugePos(p => {
-        let np = p + dir * 4;
+        let np = p + dir * gaugeDiff.markerSpeed;
         if (np >= 100) { np = 100; dir = -1; }
         else if (np <= 0) { np = 0; dir = 1; }
         return np;
       });
+      if (gaugeDiff.moveAmp > 0) setFrame(f => f + 1);
     }, 30);
     return () => clearInterval(id);
-  }, [phase, running]);
+  }, [phase, running, gaugeDiff]);
 
   const currentPose = poses[poseIndex];
+  // 現在の判定ゾーン中央位置（描画とキメ判定で共有）。
+  const liveCenters = gaugeZones.map(z => gaugeZoneCenter(z, frame, gaugeDiff));
   const runningTotal = results.reduce((a, r) => a + r.score, 0);
 
   const strikePose = () => {
     if (!running) return;
     setRunning(false);
-    const timing = judgeTiming(gaugePos);
+    const timing = judgeTimingAt(gaugePos, liveCenters, gaugeDiff);
     const score = scorePose(currentPose, stats, Date.now(), timing.mult);
     const heckles = pickHeckles(timing.mult, currentPose, contestTier); // 客席からのヤジ（キメの出来・見せる部位・大会の格で内容が変わる）
     const r: PoseResult = { pose: currentPose, score, timing, heckles };
@@ -2018,6 +2079,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
       setPoseIndex(i => i + 1);
       setLastPose(null);
       setGaugePos(0);
+      setFrame(0);
       setRunning(true);
     }
   };
@@ -2295,7 +2357,18 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   }
 
   // ===== ポージング画面 =====
-  const timingPreview = judgeTiming(gaugePos);
+  const timingPreview = judgeTimingAt(gaugePos, liveCenters, gaugeDiff);
+  // 難易度で有効になっているギミックの説明タグ。
+  const gaugeFeatures = [
+    `キレ幅 ${Math.round(gaugeDiff.halfWidth * 2)}%`,
+    gaugeDiff.randomPos ? '位置ランダム' : '中央固定',
+    gaugeDiff.moveAmp > 0 ? '移動する' : null,
+    gaugeDiff.zoneCount > 1 ? `${gaugeDiff.zoneCount}か所` : null,
+  ].filter(Boolean) as string[];
+  const gaugeHint =
+    gaugeDiff.moveAmp > 0 ? '動く緑の「キレゾーン」を狙え！'
+    : gaugeDiff.zoneCount > 1 ? 'いずれかの緑「キレゾーン」で決めろ！'
+    : '緑の「キレゾーン」で決めろ！';
   return (
     <div className="glass-panel" style={{ marginTop: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -2331,12 +2404,27 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
 
       {/* キメゲージ */}
       <div style={{ marginBottom: '1rem' }}>
+        {/* 難易度表示（大会の格で上がる） */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem', fontSize: '0.66rem', color: 'var(--text-secondary)' }}>
+          <span>キメ難易度 <span style={{ color: '#ffd23f' }}>{'★'.repeat(gaugeDiff.stars)}{'☆'.repeat(4 - gaugeDiff.stars)}</span></span>
+          <span style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {gaugeFeatures.map((f, i) => (
+              <span key={i} style={{ padding: '0 0.3rem', borderRadius: '4px', background: 'rgba(255,255,255,0.08)' }}>{f}</span>
+            ))}
+          </span>
+        </div>
         <div className="contest-gauge">
-          <div className="contest-gauge-zone" />
+          {/* 判定ゾーン（キレ帯＝緑／ナイス帯＝淡い水色）。位置は難易度に応じて動く・複数になる。 */}
+          {liveCenters.map((c, i) => (
+            <Fragment key={i}>
+              <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: 'rgba(0,229,255,0.12)', transition: 'left 0.03s linear' }} />
+              <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: 'rgba(57,255,20,0.4)', borderLeft: '1px solid rgba(57,255,20,0.9)', borderRight: '1px solid rgba(57,255,20,0.9)', transition: 'left 0.03s linear' }} />
+            </Fragment>
+          ))}
           <div className="contest-gauge-marker" style={{ left: `${gaugePos}%` }} />
         </div>
         <div style={{ textAlign: 'center', fontSize: '0.72rem', marginTop: '0.3rem', color: running ? 'var(--text-secondary)' : timingPreview.color }}>
-          {running ? '中央の「キレゾーン」で決めろ！' : ''}
+          {running ? gaugeHint : ''}
         </div>
       </div>
 
