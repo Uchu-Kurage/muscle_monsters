@@ -218,7 +218,10 @@ training (skipping legs tanks your score).
   faster marker. Zones are regenerated per pose (`generateGaugeZones`), animated
   from a `frame` counter (`gaugeZoneCenter`), and judged against the nearest zone
   center (`judgeTimingAt`). A ★ difficulty indicator + feature tags show above the
-  gauge.
+  gauge. With **multiple** zones the player must tap **each** zone (one tap per
+  zone; each tap claims its nearest un-claimed zone, tracked in `claimedZones` /
+  `poseTaps`), and the pose's timing multiplier is the **worst** of those taps —
+  so キレッキレ requires hitting every zone perfectly.
 - **Pose sprites**: each pose has a dedicated sprite at
   `public/assets/pose_{poseId}.png`, shown via the `PoseSprite` component
   (`getPoseSpriteSrc`), which falls back to the pose's emoji if the file is

@@ -1991,6 +1991,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   const [poseIndex, setPoseIndex] = useState(0);
   const [gaugePos, setGaugePos] = useState(0);
   const [running, setRunning] = useState(true); // ゲージ稼働中（＝まだキメていない）
+  const [claimedZones, setClaimedZones] = useState<number[]>([]); // このポーズで既にキメたゾーンのindex
+  const [poseTaps, setPoseTaps] = useState<TimingResult[]>([]);   // 各ゾーンのキメ結果（複数ゾーン用）
   const [results, setResults] = useState<PoseResult[]>([]);
   const [lastPose, setLastPose] = useState<PoseResult | null>(null);
   const [phase, setPhase] = useState<'opening' | 'posing' | 'result' | 'detail'>('opening');
@@ -2041,15 +2043,35 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   const liveCenters = gaugeZones.map(z => gaugeZoneCenter(z, frame, gaugeDiff));
   const runningTotal = results.reduce((a, r) => a + r.score, 0);
 
-  const strikePose = () => {
-    if (!running) return;
+  // ポーズを確定（総合キメ倍率でスコア化し、ヤジと結果を記録）。
+  const finalizePose = (timing: TimingResult) => {
     setRunning(false);
-    const timing = judgeTimingAt(gaugePos, liveCenters, gaugeDiff);
     const score = scorePose(currentPose, stats, Date.now(), timing.mult);
     const heckles = pickHeckles(timing.mult, currentPose, contestTier); // 客席からのヤジ（キメの出来・見せる部位・大会の格で内容が変わる）
     const r: PoseResult = { pose: currentPose, score, timing, heckles };
     setLastPose(r);
     setResults(prev => [...prev, r]);
+    setClaimedZones([]);
+    setPoseTaps([]);
+  };
+
+  const strikePose = () => {
+    if (!running) return;
+    // まだキメていないゾーンのうち、マーカーに最も近いものを今回の判定対象にする。
+    const remaining = liveCenters.map((c, i) => ({ c, i })).filter(z => !claimedZones.includes(z.i));
+    if (remaining.length === 0) return;
+    const target = remaining.reduce((a, b) => (Math.abs(gaugePos - b.c) < Math.abs(gaugePos - a.c) ? b : a));
+    const res = judgeTimingAt(gaugePos, [target.c], gaugeDiff);
+    const newTaps = [...poseTaps, res];
+    if (claimedZones.length + 1 >= gaugeDiff.zoneCount) {
+      // 全ゾーンをキメた。総合は一番出来の悪いタップで決める（全部キレなら キレッキレ）。
+      const overall = newTaps.reduce((a, b) => (b.mult < a.mult ? b : a));
+      finalizePose(overall);
+    } else {
+      // まだ残りゾーンがある：マーカーは動かしたまま次のゾーンを狙わせる。
+      setClaimedZones([...claimedZones, target.i]);
+      setPoseTaps(newTaps);
+    }
   };
 
   const finishContest = (allResults: PoseResult[]) => {
@@ -2080,6 +2102,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
       setLastPose(null);
       setGaugePos(0);
       setFrame(0);
+      setClaimedZones([]);
+      setPoseTaps([]);
       setRunning(true);
     }
   };
@@ -2357,17 +2381,21 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   }
 
   // ===== ポージング画面 =====
-  const timingPreview = judgeTimingAt(gaugePos, liveCenters, gaugeDiff);
+  // プレビューは「まだキメていないゾーン」の最寄りに対して出す。
+  const remainingCenters = liveCenters.filter((_, i) => !claimedZones.includes(i));
+  const timingPreview = judgeTimingAt(gaugePos, remainingCenters.length ? remainingCenters : liveCenters, gaugeDiff);
+  const multiZone = gaugeDiff.zoneCount > 1;
+  const remainingCount = gaugeDiff.zoneCount - claimedZones.length;
   // 難易度で有効になっているギミックの説明タグ。
   const gaugeFeatures = [
     `キレ幅 ${Math.round(gaugeDiff.halfWidth * 2)}%`,
     gaugeDiff.randomPos ? '位置ランダム' : '中央固定',
     gaugeDiff.moveAmp > 0 ? '移動する' : null,
-    gaugeDiff.zoneCount > 1 ? `${gaugeDiff.zoneCount}か所` : null,
+    multiZone ? `${gaugeDiff.zoneCount}か所すべて` : null,
   ].filter(Boolean) as string[];
   const gaugeHint =
-    gaugeDiff.moveAmp > 0 ? '動く緑の「キレゾーン」を狙え！'
-    : gaugeDiff.zoneCount > 1 ? 'いずれかの緑「キレゾーン」で決めろ！'
+    multiZone ? `緑ゾーンを${gaugeDiff.zoneCount}か所ぜんぶキメろ！（全部キレで最高評価）`
+    : gaugeDiff.moveAmp > 0 ? '動く緑の「キレゾーン」を狙え！'
     : '緑の「キレゾーン」で決めろ！';
   return (
     <div className="glass-panel" style={{ marginTop: 0 }}>
@@ -2414,23 +2442,40 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           </span>
         </div>
         <div className="contest-gauge">
-          {/* 判定ゾーン（キレ帯＝緑／ナイス帯＝淡い水色）。位置は難易度に応じて動く・複数になる。 */}
-          {liveCenters.map((c, i) => (
-            <Fragment key={i}>
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: 'rgba(0,229,255,0.12)', transition: 'left 0.03s linear' }} />
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: 'rgba(57,255,20,0.4)', borderLeft: '1px solid rgba(57,255,20,0.9)', borderRight: '1px solid rgba(57,255,20,0.9)', transition: 'left 0.03s linear' }} />
-            </Fragment>
-          ))}
+          {/* 判定ゾーン（キレ帯＝緑／ナイス帯＝淡い水色）。位置は難易度に応じて動く・複数になる。
+              複数ゾーンでは既にキメたゾーンを灰色＋✓で示し、残りを狙わせる。 */}
+          {liveCenters.map((c, i) => {
+            const claimed = claimedZones.includes(i);
+            return (
+              <Fragment key={i}>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: claimed ? 'rgba(255,255,255,0.05)' : 'rgba(0,229,255,0.12)', transition: 'left 0.03s linear' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: claimed ? 'rgba(150,150,150,0.35)' : 'rgba(57,255,20,0.4)', borderLeft: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(57,255,20,0.9)'}`, borderRight: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(57,255,20,0.9)'}`, transition: 'left 0.03s linear', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {claimed && <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>✓</span>}
+                </div>
+              </Fragment>
+            );
+          })}
           <div className="contest-gauge-marker" style={{ left: `${gaugePos}%` }} />
         </div>
         <div style={{ textAlign: 'center', fontSize: '0.72rem', marginTop: '0.3rem', color: running ? 'var(--text-secondary)' : timingPreview.color }}>
           {running ? gaugeHint : ''}
         </div>
+        {/* 複数ゾーン：進捗と、これまでのキメ結果 */}
+        {running && multiZone && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', fontSize: '0.72rem' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>キメた {claimedZones.length}/{gaugeDiff.zoneCount}</span>
+            {poseTaps.map((t, i) => (
+              <span key={i} style={{ color: t.color }}>{t.label.replace(/[ 　].*$/, '')}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 操作 */}
       {running ? (
-        <button onClick={strikePose} style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}>📸 ポーズを決める！</button>
+        <button onClick={strikePose} style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}>
+          {multiZone && claimedZones.length > 0 ? `📸 次のゾーンをキメる！（残り${remainingCount}）` : '📸 ポーズを決める！'}
+        </button>
       ) : lastPose && (
         <div style={{ animation: 'popUp 0.3s ease-out' }}>
           {/* 客席から飛ぶヤジ（掛け声） */}
