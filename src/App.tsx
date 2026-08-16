@@ -4372,6 +4372,31 @@ function App() {
                         </div>
                       )}
 
+                      {/* 超回復ピークゲージ：回復完了 ～ サボり圏突入までの「狙い目」の窓の残りを表示。
+                          休息ゲージと違い、残り時間が減るほどバーが減っていく（ボーナス期限までのカウントダウン）。 */}
+                      {isSuperCompReady && !isTrainedToday && (() => {
+                        const superCompWindowMs = requiredRecoveryMs * (CONDITION_SABORI_GRACE_FACTOR - 1);
+                        const superCompEndsAt = (mStats.lastTrainedAt || 0) + requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR;
+                        const remainingMs = Math.max(0, superCompEndsAt - Date.now());
+                        const remainingPct = Math.min(100, (remainingMs / superCompWindowMs) * 100);
+                        const remainingHours = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+                        return (
+                          <div
+                            style={{ width: '100%', marginTop: '0.5rem' }}
+                            data-tooltip-id="calendar-tooltip"
+                            data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate(superCompEndsAt)}まで）`}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#39ff14', marginBottom: '2px' }}>
+                              <span>⚡狙い目</span>
+                              <span>あと{remainingHours}時間</span>
+                            </div>
+                            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${remainingPct}%`, height: '100%', background: 'linear-gradient(90deg, #39ff14, #00ffaa)', transition: 'width 0.5s ease-out' }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* コンディションゲージ */}
                       {showCondition && (
                         <div
