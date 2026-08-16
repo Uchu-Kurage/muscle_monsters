@@ -204,14 +204,24 @@ training (skipping legs tanks your score).
   times a weighted-average **finish factor** (`getMuscleFinish`: the
   `condition` tier multiplier reused from `CONDITION_TIERS`, ×1.1 when 鍛えどき /
   ×0.9 when overworked) = 仕上がり, times a **timing multiplier**
-  (`judgeTiming`, 0.85–1.2) from the キメ mini-game = ポージング. The contest
+  (`judgeTimingAt`, 0.85–1.2) from the キメ mini-game = ポージング. The contest
   total is `Σ poseScore × balanceFactor`.
 - **Balance/symmetry** (`getBalanceInfo`): a gentle factor (0.85–1.1) from the
   evenness (coefficient of variation) of the 5 `MUSCLE_GROUPS`' average levels —
   a weak body region drags the whole score down. Shown as a "全身バランス評価".
 - **キメ timing** (`ContestView`): per pose a marker sweeps a gauge
-  (`contest-gauge`); tapping 「ポーズを決める！」 near the center キレゾーン gives the
-  higher timing multiplier. This is the only manual/skill element.
+  (`contest-gauge`); tapping 「ポーズを決める！」 inside a green キレゾーン gives the
+  higher timing multiplier. This is the only manual/skill element. The gauge's
+  difficulty scales with the contest tier via `getGaugeDifficulty(contestTier)`
+  (`GaugeDifficulty`): higher tiers get a **narrower** キレゾーン, **randomized**
+  (not centered) zone position, **moving** zones, **multiple** zones, and a
+  faster marker. Zones are regenerated per pose (`generateGaugeZones`), animated
+  from a `frame` counter (`gaugeZoneCenter`), and judged against the nearest zone
+  center (`judgeTimingAt`). A ★ difficulty indicator + feature tags show above the
+  gauge. With **multiple** zones the player must tap **each** zone (one tap per
+  zone; each tap claims its nearest un-claimed zone, tracked in `claimedZones` /
+  `poseTaps`), and the pose's timing multiplier is the **worst** of those taps —
+  so キレッキレ requires hitting every zone perfectly.
 - **Pose sprites**: each pose has a dedicated sprite at
   `public/assets/pose_{poseId}.png`, shown via the `PoseSprite` component
   (`getPoseSpriteSrc`), which falls back to the pose's emoji if the file is
