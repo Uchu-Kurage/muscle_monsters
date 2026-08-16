@@ -1397,12 +1397,12 @@ const CONTESTS: Contest[] = [
     emoji: '🥉',
     flavor: 'はじめての晴れ舞台。基本ポーズで自分の肉体を見せつけよう。',
     poses: ['front_double_biceps', 'side_chest', 'abdominals_thighs'],
-    passLine: 60,
-    winLine: 110,
+    passLine: 35,
+    winLine: 55,
     clearTitleId: 'clear_chiku',
     rivals: [
-      { name: 'ジム歴半年ボーイ', emoji: '🐣', comment: '最近ジム入会したっす！お手柔らかに！', baseScore: 55 },
-      { name: '筋トレ2年目くん', emoji: '💦', comment: '今日は仕上がってるぜ、負けねぇ！', baseScore: 100 },
+      { name: 'ジム歴半年ボーイ', emoji: '🐣', comment: '最近ジム入会したっす！お手柔らかに！', baseScore: 30 },
+      { name: '筋トレ2年目くん', emoji: '💦', comment: '今日は仕上がってるぜ、負けねぇ！', baseScore: 50 },
     ],
   },
   {
