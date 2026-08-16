@@ -1700,6 +1700,96 @@ interface PoseResult { pose: PoseDef; score: number; timing: TimingResult; heckl
 // 大会のフィールド（プレイヤー＋ライバル）の1エントリ。
 interface Competitor { name: string; emoji: string; score: number; isPlayer: boolean; }
 
+// 審査員講評（結果の分析レポート）。実際のボディビル審査の観点
+// ＝筋量／仕上がり／バランス／ポージングを、そのステージで見せた部位の
+// レベル・仕上がり係数・キメのタイミングから読み取り、評価とアドバイスを返す。純粋関数。
+interface JudgeSection { axis: string; grade: string; color: string; comment: string; }
+interface JudgeReport { sections: JudgeSection[]; summary: string; }
+interface GradeTier { min: number; grade: string; color: string; comment: string; }
+
+const GRADE_COLOR = { S: '#39ff14', A: '#00e5ff', B: '#ffd23f', C: '#ff9f1c', D: '#ff6b6b' } as const;
+
+function pickGradeTier(v: number, tiers: GradeTier[]): GradeTier {
+  return tiers.find(t => v >= t.min) ?? tiers[tiers.length - 1];
+}
+
+// グループ名から先頭の絵文字を除く（例: '🦵 脚・お尻' → '脚・お尻'）。
+function groupLabel(title: string): string {
+  return title.replace(/^\S+\s*/, '');
+}
+
+function buildJudgeReport(
+  poses: PoseDef[],
+  results: PoseResult[],
+  stats: AppState,
+  balance: { factor: number; label: string; color: string },
+  now: number,
+): JudgeReport {
+  // このステージで審査員が見た部位（規定ポーズで見せた部位の集合）
+  const shown = Array.from(new Set(poses.flatMap(p => p.displays.map(d => d.muscle))));
+  const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+
+  const avgLevel = avg(shown.map(m => stats[m]?.level ?? 1));
+  const avgFinish = avg(shown.map(m => { const ms = stats[m]; return ms ? getMuscleFinish(ms, m, now) : 1; }));
+  const avgTiming = avg(results.map(r => r.timing.mult)) || 1;
+
+  // 5部位グループの平均レベルで最強・最弱の部位群を特定（強み／弱点コメントに使う）。
+  const groupAvgs = MUSCLE_GROUPS.map(g => ({
+    title: g.title,
+    avg: avg(g.muscles.map(m => stats[m]?.level ?? 1)),
+  }));
+  const strong = groupAvgs.reduce((a, b) => (b.avg > a.avg ? b : a));
+  const weak = groupAvgs.reduce((a, b) => (b.avg < a.avg ? b : a));
+
+  const kinryo = pickGradeTier(avgLevel, [
+    { min: 14, grade: 'S', color: GRADE_COLOR.S, comment: '圧巻の筋量。ステージを完全に支配していた。' },
+    { min: 10, grade: 'A', color: GRADE_COLOR.A, comment: '文句なしのバルク。見応え十分だ。' },
+    { min: 7,  grade: 'B', color: GRADE_COLOR.B, comment: 'しっかりと筋肉がついてきている。' },
+    { min: 4,  grade: 'C', color: GRADE_COLOR.C, comment: 'まずまずの筋量。これからの伸びに期待だ。' },
+    { min: 0,  grade: 'D', color: GRADE_COLOR.D, comment: 'まだ線が細い。基礎の積み上げが必要だ。' },
+  ]);
+  const shiagari = pickGradeTier(avgFinish, [
+    { min: 1.25, grade: 'S', color: GRADE_COLOR.S, comment: 'バキバキの仕上がり。カットが深い。' },
+    { min: 1.1,  grade: 'A', color: GRADE_COLOR.A, comment: 'よく絞れている。血管もくっきり浮いていた。' },
+    { min: 1.0,  grade: 'B', color: GRADE_COLOR.B, comment: '悪くない仕上がりだ。' },
+    { min: 0.85, grade: 'C', color: GRADE_COLOR.C, comment: 'もう少し調子を上げて臨みたいところ。' },
+    { min: 0,    grade: 'D', color: GRADE_COLOR.D, comment: 'コンディション不良が目立った。' },
+  ]);
+  const balTier = pickGradeTier(balance.factor, [
+    { min: 1.05, grade: 'S', color: GRADE_COLOR.S, comment: '全身の均整が取れた完璧なプロポーション。' },
+    { min: 1.0,  grade: 'A', color: GRADE_COLOR.A, comment: 'バランスの取れた身体だ。' },
+    { min: 0.95, grade: 'B', color: GRADE_COLOR.B, comment: `概ねまとまっているが、${groupLabel(weak.title)}をもう一伸ばし。` },
+    { min: 0.9,  grade: 'C', color: GRADE_COLOR.C, comment: `${groupLabel(weak.title)}に弱さが見える。` },
+    { min: 0,    grade: 'D', color: GRADE_COLOR.D, comment: `${groupLabel(weak.title)}が明確な弱点。全体の評価を引き下げている。` },
+  ]);
+  const posing = pickGradeTier(avgTiming, [
+    { min: 1.15, grade: 'S', color: GRADE_COLOR.S, comment: 'キレのあるポージング。魅せ方を熟知している。' },
+    { min: 1.05, grade: 'A', color: GRADE_COLOR.A, comment: '安定したポージングだった。' },
+    { min: 0.95, grade: 'B', color: GRADE_COLOR.B, comment: 'ポージングは及第点。' },
+    { min: 0.9,  grade: 'C', color: GRADE_COLOR.C, comment: 'キメが甘い場面があった。' },
+    { min: 0,    grade: 'D', color: GRADE_COLOR.D, comment: 'ポージングで損をしている。キメを磨け。' },
+  ]);
+
+  const sections: JudgeSection[] = [
+    { axis: '筋量', grade: kinryo.grade, color: kinryo.color, comment: kinryo.comment },
+    { axis: '仕上がり', grade: shiagari.grade, color: shiagari.color, comment: shiagari.comment },
+    { axis: 'バランス', grade: balTier.grade, color: balTier.color, comment: balTier.comment },
+    { axis: 'ポージング', grade: posing.grade, color: posing.color, comment: posing.comment },
+  ];
+
+  // 総評：最も低評価の観点に踏み込んだアドバイス＋強みの一言。
+  const rankOf: Record<string, number> = { S: 4, A: 3, B: 2, C: 1, D: 0 };
+  const weakest = sections.reduce((a, b) => (rankOf[b.grade] < rankOf[a.grade] ? b : a));
+  const advice =
+    weakest.axis === '筋量' ? 'トレーニングのボリュームを増やし、全体のレベル底上げを狙おう。'
+    : weakest.axis === '仕上がり' ? '大会前はコンディションを整え、鍛えどきを逃さず仕上げて臨もう。'
+    : weakest.axis === 'バランス' ? `弱点の${groupLabel(weak.title)}を重点的に鍛え、全身の均整を高めよう。`
+    : 'キメのタイミング（中央のキレゾーン）を磨けば、同じ肉体でも得点が伸びる。';
+  const summary = `${groupLabel(strong.title)}の仕上がりは特に印象的だった。${advice}`;
+
+  return { sections, summary };
+}
+
 interface ContestViewProps {
   contest: Contest;
   poses: PoseDef[];
@@ -1836,6 +1926,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   // ===== 結果発表（閉会式）=====
   if (phase === 'result') {
     const rawTotal = results.reduce((a, r) => a + r.score, 0);
+    const report = buildJudgeReport(poses, results, stats, balance, Date.now()); // 審査員講評（分析レポート）
     const newTitle =
       placement === 'win' && contest.winTitleId && !wasWonRef.current ? 'グランプリ王者'
       : (placement === 'win' || placement === 'pass') && !wasClearedRef.current ? getPlacementTitle(contest)
@@ -1885,6 +1976,25 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.8rem', textAlign: 'center' }}>
           あなたの総合スコア <b style={{ color: 'var(--text-accent)' }}>{finalTotal}</b>
           （ポーズ合計 {rawTotal} × バランス <span style={{ color: balance.color }}>{balance.label} ×{balance.factor.toFixed(2)}</span>）
+        </div>
+
+        {/* 審査員講評（結果の分析レポート） */}
+        <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.55rem', textAlign: 'center' }}>
+            📝 審査員講評
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+            {report.sections.map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <span style={{ flexShrink: 0, width: '4.4rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{s.axis}</span>
+                <span style={{ flexShrink: 0, width: '1.4rem', textAlign: 'center', fontWeight: 'bold', color: s.color }}>{s.grade}</span>
+                <span style={{ fontSize: '0.72rem', lineHeight: 1.4 }}>{s.comment}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.12)', fontSize: '0.72rem', lineHeight: 1.5 }}>
+            <span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>総評：</span>{report.summary}
+          </div>
         </div>
 
         {newTitle && (
