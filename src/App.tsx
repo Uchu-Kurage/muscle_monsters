@@ -1792,12 +1792,25 @@ function buildJudgeReport(
 
 // 詳細レポート（別画面）用のデータ。計算式の内訳・部位ごとの影響・次の一手を、
 // 実際の採点ロジック（scorePose と同じ式）から算出する純粋関数。
+// ポーズ内の1部位の内訳（この部位がそのポーズの得点にどう効いたか）。
+interface PoseMuscleRow {
+  muscle: MuscleType;
+  name: string;
+  level: number;
+  weight: number;            // このポーズでの審査重み
+  levelContribution: number; // 筋量への貢献＝レベル×重み
+  finish: number;            // 仕上がり係数
+  tier: ConditionTier;       // 調子の段階
+  superComp: boolean;        // 鍛えどき（仕上がり増）
+  recovering: boolean;       // オーバーワーク中（仕上がり減）
+}
 interface PoseBreakdown {
   pose: PoseDef;
   levelSum: number;      // 筋量＝Σ(レベル×重み)
   finishFactor: number;  // 仕上がり＝見せた部位の仕上がり係数の加重平均
   timingMult: number;    // キメ＝ポージングのタイミング倍率
   score: number;         // ポーズ得点＝round(筋量×仕上がり×キメ)
+  rows: PoseMuscleRow[]; // このポーズで見せた部位ごとの内訳（筋量貢献の降順）
 }
 interface MuscleImpact {
   muscle: MuscleType;
@@ -1833,15 +1846,29 @@ function buildDetailReport(
   // ポーズごとの内訳（scorePose と同じ計算を再現し、途中の値を取り出す）。
   const poseBreakdowns: PoseBreakdown[] = results.map(r => {
     let levelSum = 0, finishWeighted = 0, weightSum = 0;
+    const rows: PoseMuscleRow[] = [];
     for (const d of r.pose.displays) {
       const ms = stats[d.muscle];
       if (!ms) continue;
+      const finish = getMuscleFinish(ms, d.muscle, now);
       levelSum += ms.level * d.weight;
-      finishWeighted += getMuscleFinish(ms, d.muscle, now) * d.weight;
+      finishWeighted += finish * d.weight;
       weightSum += d.weight;
+      rows.push({
+        muscle: d.muscle,
+        name: MUSCLE_NAMES[d.muscle],
+        level: ms.level,
+        weight: d.weight,
+        levelContribution: ms.level * d.weight,
+        finish,
+        tier: getConditionTier(ms.condition ?? DEFAULT_CONDITION),
+        superComp: isMuscleSuperCompNow(ms, d.muscle, now),
+        recovering: isMuscleRecoveringNow(ms, d.muscle, now),
+      });
     }
+    rows.sort((a, b) => b.levelContribution - a.levelContribution); // 筋量貢献の大きい順
     const finishFactor = weightSum > 0 ? finishWeighted / weightSum : 1;
-    return { pose: r.pose, levelSum, finishFactor, timingMult: r.timing.mult, score: r.score };
+    return { pose: r.pose, levelSum, finishFactor, timingMult: r.timing.mult, score: r.score, rows };
   });
   const rawTotal = poseBreakdowns.reduce((a, b) => a + b.score, 0);
   const finalTotal = Math.round(rawTotal * balanceFactor);
@@ -1916,6 +1943,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
   const [results, setResults] = useState<PoseResult[]>([]);
   const [lastPose, setLastPose] = useState<PoseResult | null>(null);
   const [phase, setPhase] = useState<'opening' | 'posing' | 'result' | 'detail'>('opening');
+  const [openPoseId, setOpenPoseId] = useState<string | null>(null); // 詳細レポートで内訳を開いているポーズ
   const [finalTotal, setFinalTotal] = useState(0);
   const [placement, setPlacement] = useState<'win' | 'pass' | 'fail'>('fail');
   const [ranking, setRanking] = useState<Competitor[]>([]);
@@ -2132,22 +2160,65 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
             総合スコア＝<b style={{ color: 'var(--text-primary)' }}>Σ(各ポーズ得点)</b>×<b style={{ color: balance.color }}>全身バランス</b><br />
             ポーズ得点＝<b style={{ color: '#00e5ff' }}>筋量</b>(Σ レベル×重み)×<b style={{ color: '#39ff14' }}>仕上がり</b>(調子・鍛えどき)×<b style={{ color: '#ffd23f' }}>キメ</b>(タイミング)
           </div>
-          {/* ポーズ別の内訳 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '0.2rem 0.4rem', fontSize: '0.68rem', alignItems: 'center' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>ポーズ</span>
-            <span style={{ color: '#00e5ff', textAlign: 'right' }}>筋量</span>
-            <span style={{ color: '#39ff14', textAlign: 'right' }}>仕上</span>
-            <span style={{ color: '#ffd23f', textAlign: 'right' }}>キメ</span>
-            <span style={{ textAlign: 'right' }}>得点</span>
-            {detail.poseBreakdowns.map((b, i) => (
-              <Fragment key={i}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.pose.emoji} {b.pose.name}</span>
-                <span style={{ textAlign: 'right' }}>{fmt(b.levelSum)}</span>
-                <span style={{ textAlign: 'right' }}>×{b.finishFactor.toFixed(2)}</span>
-                <span style={{ textAlign: 'right' }}>×{b.timingMult.toFixed(2)}</span>
-                <b style={{ textAlign: 'right', color: 'var(--text-accent)' }}>{b.score}</b>
-              </Fragment>
-            ))}
+          {/* ポーズ別の内訳（タップで部位ごとの計算内訳を開閉） */}
+          <div style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>各ポーズをタップすると部位ごとの内訳が開きます。</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {detail.poseBreakdowns.map(b => {
+              const open = openPoseId === b.pose.id;
+              return (
+                <div key={b.pose.id} className="muscle-card" style={{ padding: '0.5rem 0.6rem' }}>
+                  {/* ポーズのサマリー行 */}
+                  <div
+                    onClick={() => setOpenPoseId(open ? null : b.pose.id)}
+                    style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <span style={{ fontSize: '0.76rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {b.pose.emoji} {b.pose.name}
+                    </span>
+                    <span style={{ flexShrink: 0, fontSize: '0.72rem' }}>
+                      <b style={{ color: 'var(--text-accent)' }}>{b.score}</b>
+                      <span style={{ color: 'var(--text-secondary)', marginLeft: '0.3rem' }}>pt {open ? '▲' : '▼'}</span>
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                    <span style={{ color: '#00e5ff' }}>筋量 {fmt(b.levelSum)}</span> ×{' '}
+                    <span style={{ color: '#39ff14' }}>仕上 ×{b.finishFactor.toFixed(2)}</span> ×{' '}
+                    <span style={{ color: '#ffd23f' }}>キメ ×{b.timingMult.toFixed(2)}</span> ＝ {b.score}
+                  </div>
+
+                  {/* 部位ごとの内訳 */}
+                  {open && (
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '0.2rem 0.5rem', fontSize: '0.66rem', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>部位</span>
+                        <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>Lv</span>
+                        <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>重み</span>
+                        <span style={{ color: '#00e5ff', textAlign: 'right' }}>筋量</span>
+                        <span style={{ color: '#39ff14', textAlign: 'right' }}>仕上</span>
+                        {b.rows.map(r => (
+                          <Fragment key={r.muscle}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.name}
+                              {r.superComp && <span style={{ color: '#39ff14' }}> ⚡</span>}
+                              {r.recovering && <span style={{ color: '#ff9f1c' }}> 💤</span>}
+                            </span>
+                            <span style={{ textAlign: 'right' }}>{r.level}</span>
+                            <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>×{r.weight}</span>
+                            <b style={{ textAlign: 'right' }}>{fmt(r.levelContribution)}</b>
+                            <span style={{ textAlign: 'right', color: r.tier.color }}>×{r.finish.toFixed(2)}</span>
+                          </Fragment>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '0.45rem', fontSize: '0.66rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        筋量合計 <b style={{ color: '#00e5ff' }}>{fmt(b.levelSum)}</b>（＝各部位の Lv×重み の合計）<br />
+                        仕上がり <b style={{ color: '#39ff14' }}>×{b.finishFactor.toFixed(2)}</b>（各部位の仕上がりを重みで加重平均）<br />
+                        キメ <b style={{ color: '#ffd23f' }}>×{b.timingMult.toFixed(2)}</b> → 得点 <b style={{ color: 'var(--text-accent)' }}>{b.score}</b>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.12)', fontSize: '0.72rem', textAlign: 'right' }}>
             ポーズ合計 <b>{detail.rawTotal}</b> × バランス <span style={{ color: balance.color }}>×{detail.balanceFactor.toFixed(2)}</span> ＝ 総合 <b style={{ color: 'var(--text-accent)' }}>{detail.finalTotal}</b>
