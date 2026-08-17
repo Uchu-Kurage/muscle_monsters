@@ -2,8 +2,9 @@
  * マッスルモンスターズ 通知用 Service Worker
  *
  * サーバー不要のプッシュ通知。Periodic Background Sync（定期バックグラウンド同期）で
- * 端末が本アプリを閉じている間も定期的に起き、「超回復して鍛えどきになった部位モンスター」を
- * 検知してローカル通知を出す。状態はアプリ本体が IndexedDB に書き出したスナップショットを読む
+ * 端末が本アプリを閉じている間も定期的に起き、(1)「超回復して鍛えどきになった部位モンスター」と
+ * (2)「超回復ピーク（狙い目）がもうすぐ終わる部位モンスター」を検知してローカル通知を出す。
+ * 状態はアプリ本体が IndexedDB に書き出したスナップショットを読む
  * （Service Worker は localStorage を読めないため）。
  *
  * 注意: 対応は主に Chrome / Edge（Android）。iOS/Safari・Firefox は Periodic Background Sync
@@ -14,6 +15,8 @@
 const DB_NAME = 'mm_notify';
 const DB_VERSION = 1;
 const PERIODIC_SYNC_TAG = 'mm-recovery-check';
+// 超回復ピーク（狙い目）窓の残りがこの割合以下になったら「もうすぐ終了」通知を出す（終盤25%）。
+const PEAK_ENDING_FRACTION = 0.25;
 
 // アプリ本体（App.tsx の openNotifyDb）と同じスキーマで開く。onupgradeneeded の内容は両者で一致させること。
 function openDb() {
@@ -52,8 +55,17 @@ async function anyClientVisible() {
   return clients.some((c) => c.focused || c.visibilityState === 'visible');
 }
 
-// 鍛えどき（超回復＝回復時間を経過して回復完了）になった部位を検知し通知する。
-// 同じトレーニング分（lastTrainedAt が同一）につき1回だけ通知する（notified ストアで重複防止）。
+// 名前を「A・B ほかN体」形式にまとめる。
+function joinNames(names) {
+  const head = names.slice(0, 2).join('・');
+  const more = names.length > 2 ? ` ほか${names.length - 2}体` : '';
+  return `${head}${more}`;
+}
+
+// 2種類の鍛えどき通知を検知して出す。いずれも同じトレ分（lastTrainedAt が同一）につき1回だけ。
+//  1) 鍛えどき：回復完了（超回復に到達）した部位。notified ストアのキー m.id で重複防止。
+//  2) 狙い目もうすぐ終了：超回復ピーク窓の終盤（残り PEAK_ENDING_FRACTION 以下）に入った部位。
+//     こちらはキー `${m.id}:end` で別管理し、鍛えどき通知とは独立に1回だけ出す。
 async function runCheck() {
   let db;
   try {
@@ -67,36 +79,59 @@ async function runCheck() {
 
   const now = Date.now();
   const ready = [];
+  const endingSoon = [];
   for (const m of state.muscles) {
     if (!m.lastTrainedAt) continue;
-    if (now - m.lastTrainedAt < m.recoveryMs) continue; // まだ回復中
-    const already = await idbGet(db, 'notified', m.id);
-    if (already === m.lastTrainedAt) continue; // このトレ分は通知済み
-    ready.push(m);
-  }
-  if (ready.length === 0) return;
+    const recoveryDoneAt = m.lastTrainedAt + m.recoveryMs;
+    if (now < recoveryDoneAt) continue; // まだ回復中
 
-  // アプリを見ている最中はOS通知を出さない（既存のアプリ内「狙い目」バッジで十分）。
+    // 1) 鍛えどき（回復完了）
+    const readyNotified = await idbGet(db, 'notified', m.id);
+    if (readyNotified !== m.lastTrainedAt) ready.push(m);
+
+    // 2) 狙い目ゲージ残りわずか（ピーク窓の終盤）。peakEndsAt は新しいスナップショットのみ持つ。
+    if (typeof m.peakEndsAt === 'number') {
+      const windowMs = m.peakEndsAt - recoveryDoneAt; // 狙い目窓の長さ
+      const remainingMs = m.peakEndsAt - now; // 窓の残り
+      if (windowMs > 0 && remainingMs > 0 && remainingMs <= windowMs * PEAK_ENDING_FRACTION) {
+        const endNotified = await idbGet(db, 'notified', m.id + ':end');
+        if (endNotified !== m.lastTrainedAt) endingSoon.push(m);
+      }
+    }
+  }
+  if (ready.length === 0 && endingSoon.length === 0) return;
+
+  // アプリを見ている最中はOS通知を出さない（既存のアプリ内「狙い目」ゲージ／バッジで十分）。
   // ここで通知済みフラグは立てないので、バックグラウンドに回った次回チェックで改めて通知される。
   if (await anyClientVisible()) return;
 
-  for (const m of ready) await idbPut(db, 'notified', m.id, m.lastTrainedAt);
+  if (ready.length > 0) {
+    for (const m of ready) await idbPut(db, 'notified', m.id, m.lastTrainedAt);
+    const names = joinNames(ready.map((m) => m.name));
+    await self.registration.showNotification('💪 鍛えどきだ！', {
+      body: `${names} が超回復して鍛えどきに！今トレーニングするとEXPボーナスのチャンス。`,
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: 'mm-recovery',
+      renotify: true,
+      lang: 'ja',
+      data: { url: '/' },
+    });
+  }
 
-  const names = ready.map((m) => m.name);
-  const head = names.slice(0, 2).join('・');
-  const more = names.length > 2 ? ` ほか${names.length - 2}体` : '';
-  const title = '💪 鍛えどきだ！';
-  const body = `${head}${more} が超回復して鍛えどきに！今トレーニングするとEXPボーナスのチャンス。`;
-
-  await self.registration.showNotification(title, {
-    body,
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
-    tag: 'mm-recovery',
-    renotify: true,
-    lang: 'ja',
-    data: { url: '/' },
-  });
+  if (endingSoon.length > 0) {
+    for (const m of endingSoon) await idbPut(db, 'notified', m.id + ':end', m.lastTrainedAt);
+    const names = joinNames(endingSoon.map((m) => m.name));
+    await self.registration.showNotification('⏰ 狙い目が終わりそう！', {
+      body: `${names} の超回復ピークがもうすぐ終了。今のうちに鍛えてEXPボーナスを逃さないで！`,
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: 'mm-peak-ending',
+      renotify: true,
+      lang: 'ja',
+      data: { url: '/' },
+    });
+  }
 }
 
 self.addEventListener('install', () => self.skipWaiting());

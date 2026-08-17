@@ -484,12 +484,17 @@ async function saveNotifySnapshot(stats: AppState, playerName: string): Promise<
   if (typeof indexedDB === 'undefined') return;
   const muscles = (Object.keys(stats) as MuscleType[])
     .filter(m => stats[m].lastTrainedAt)
-    .map(m => ({
-      id: m,
-      name: stats[m].nickname || MUSCLE_NAMES[m],
-      lastTrainedAt: stats[m].lastTrainedAt as number,
-      recoveryMs: MUSCLE_RECOVERY_HOURS[m] * 60 * 60 * 1000,
-    }));
+    .map(m => {
+      const recoveryMs = MUSCLE_RECOVERY_HOURS[m] * 60 * 60 * 1000;
+      return {
+        id: m,
+        name: stats[m].nickname || MUSCLE_NAMES[m],
+        lastTrainedAt: stats[m].lastTrainedAt as number,
+        recoveryMs,
+        // 超回復ピーク（狙い目）が終わる時刻＝サボり圏に入る境界。SW側で「もうすぐ終了」判定に使う。
+        peakEndsAt: (stats[m].lastTrainedAt as number) + recoveryMs * CONDITION_SABORI_GRACE_FACTOR,
+      };
+    });
   try {
     const db = await openNotifyDb();
     await new Promise<void>((resolve, reject) => {
