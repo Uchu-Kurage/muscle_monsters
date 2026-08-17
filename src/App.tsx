@@ -4387,7 +4387,7 @@ function App() {
                             data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate(superCompEndsAt)}まで）`}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#39ff14', marginBottom: '2px' }}>
-                              <span>⚡狙い目</span>
+                              <span>狙い目⚡</span>
                               <span>あと{remainingHours}時間</span>
                             </div>
                             <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
