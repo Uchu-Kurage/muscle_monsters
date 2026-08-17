@@ -55,11 +55,10 @@ async function anyClientVisible() {
   return clients.some((c) => c.focused || c.visibilityState === 'visible');
 }
 
-// 名前を「A・B ほかN体」形式にまとめる。
-function joinNames(names) {
-  const head = names.slice(0, 2).join('・');
-  const more = names.length > 2 ? ` ほか${names.length - 2}体` : '';
-  return `${head}${more}`;
+// 配列からランダムに1件選ぶ（候補が無ければ null）。
+function pickOne(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // 2種類の鍛えどき通知を検知して出す。いずれも同じトレ分（lastTrainedAt が同一）につき1回だけ。
@@ -105,28 +104,30 @@ async function runCheck() {
   // ここで通知済みフラグは立てないので、バックグラウンドに回った次回チェックで改めて通知される。
   if (await anyClientVisible()) return;
 
-  if (ready.length > 0) {
-    for (const m of ready) await idbPut(db, 'notified', m.id, m.lastTrainedAt);
-    const names = joinNames(ready.map((m) => m.name));
-    await self.registration.showNotification('💪 鍛えどきだ！', {
-      body: `${names} が超回復して鍛えどきに！今トレーニングするとEXPボーナスのチャンス。`,
+  // 通知本文はそのキャラのセリフ。各モンスターが個別に話しかけるので、部位ごとに1通ずつ出す。
+  // 旧スナップショット（セリフ無し）でも動くよう、セリフが無ければ従来の定型文にフォールバックする。
+  for (const m of ready) {
+    await idbPut(db, 'notified', m.id, m.lastTrainedAt);
+    const line = pickOne(m.readyLines) || `${m.name} が超回復して鍛えどきに！今トレーニングするとEXPボーナスのチャンス。`;
+    await self.registration.showNotification(`💪 ${m.name}が鍛えどき！`, {
+      body: line,
       icon: '/favicon.svg',
       badge: '/favicon.svg',
-      tag: 'mm-recovery',
+      tag: `mm-recovery-${m.id}`,
       renotify: true,
       lang: 'ja',
       data: { url: '/' },
     });
   }
 
-  if (endingSoon.length > 0) {
-    for (const m of endingSoon) await idbPut(db, 'notified', m.id + ':end', m.lastTrainedAt);
-    const names = joinNames(endingSoon.map((m) => m.name));
-    await self.registration.showNotification('⏰ 狙い目が終わりそう！', {
-      body: `${names} の超回復ピークがもうすぐ終了。今のうちに鍛えてEXPボーナスを逃さないで！`,
+  for (const m of endingSoon) {
+    await idbPut(db, 'notified', m.id + ':end', m.lastTrainedAt);
+    const line = pickOne(m.endingLines) || `${m.name} の超回復ピークがもうすぐ終了。今のうちに鍛えてEXPボーナスを逃さないで！`;
+    await self.registration.showNotification(`⏰ ${m.name}の狙い目が終わりそう！`, {
+      body: line,
       icon: '/favicon.svg',
       badge: '/favicon.svg',
-      tag: 'mm-peak-ending',
+      tag: `mm-peak-ending-${m.id}`,
       renotify: true,
       lang: 'ja',
       data: { url: '/' },
