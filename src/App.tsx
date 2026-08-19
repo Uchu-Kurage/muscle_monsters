@@ -493,8 +493,9 @@ function openNotifyDb(): Promise<IDBDatabase> {
 }
 
 // 現在のstatsから、SWが鍛えどき判定に必要な最小限のスナップショットをIndexedDBへ書き出す。
+// enabled はアプリ側の通知オン/オフ設定。false なら SW 側でチェックを打ち切る。
 // 通知は補助機能なので、失敗しても本体の動作には影響させない（例外は握りつぶす）。
-async function saveNotifySnapshot(stats: AppState, playerName: string): Promise<void> {
+async function saveNotifySnapshot(stats: AppState, playerName: string, enabled = true): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   const muscles = (Object.keys(stats) as MuscleType[])
     .filter(m => stats[m].lastTrainedAt)
@@ -521,13 +522,50 @@ async function saveNotifySnapshot(stats: AppState, playerName: string): Promise<
     const db = await openNotifyDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('state', 'readwrite');
-      tx.objectStore('state').put({ updatedAt: Date.now(), playerName, muscles }, 'current');
+      tx.objectStore('state').put({ updatedAt: Date.now(), playerName, enabled, muscles }, 'current');
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
     db.close();
   } catch {
     /* 通知は補助機能。失敗は無視 */
+  }
+}
+
+// 通知のオン/オフ設定だけを既存スナップショットに反映する（stats を持たない場面で使う）。
+// 既存レコードが無い場合は enabled だけの最小レコードを置いておく。
+async function setNotifyEnabledFlag(enabled: boolean): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  try {
+    const db = await openNotifyDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('state', 'readwrite');
+      const store = tx.objectStore('state');
+      const getReq = store.get('current');
+      getReq.onsuccess = () => {
+        const cur = getReq.result || { updatedAt: Date.now(), muscles: [] };
+        store.put({ ...cur, enabled }, 'current');
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    /* 通知は補助機能。失敗は無視 */
+  }
+}
+
+// Periodic Background Sync の登録を解除する（通知オフ時）。非対応環境では何もしない。
+async function unregisterPeriodicSync(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const withSync = reg as unknown as {
+      periodicSync?: { unregister: (tag: string) => Promise<void> };
+    };
+    if (!withSync.periodicSync) return;
+    await withSync.periodicSync.unregister(PERIODIC_SYNC_TAG);
+  } catch {
+    /* 非対応環境などは無視 */
   }
 }
 
@@ -2698,6 +2736,8 @@ function App() {
   // 未登録なら初回起動時に登録モーダルを開く。登録済みでも編集用に開ける。
   const [showPlayerModal, setShowPlayerModal] = useState<boolean>(() => !localStorage.getItem('playerName'));
   const [playerNameDraft, setPlayerNameDraft] = useState('');
+  // 設定画面（プレイヤー名・体重・通知などをまとめた別画面）の表示状態。
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
   // キャラのおしゃべり（吹き出し）：ニックネーム付きキャラの中から1体が交代でしゃべる。
   const [talkingMuscle, setTalkingMuscle] = useState<MuscleType | null>(null);
@@ -2708,30 +2748,42 @@ function App() {
   const [notifyPerm, setNotifyPerm] = useState<NotificationPermission>(
     () => (typeof Notification !== 'undefined' ? Notification.permission : 'default'),
   );
+  // アプリ側の通知オン/オフ設定（ブラウザ許可とは別に、ユーザーがいつでも切れる）。既定はオン。
+  const [notifyEnabled, setNotifyEnabled] = useState<boolean>(
+    () => localStorage.getItem('notifyEnabled') !== 'false',
+  );
+  // 実際に通知が動く状態＝ブラウザ許可済み かつ アプリ側でオン。
+  const notifyActive = notifyPerm === 'granted' && notifyEnabled;
 
-  // Service Worker を登録する。既に通知許可済みなら Periodic Background Sync も張り直す。
+  // Service Worker を登録する。許可済み かつ アプリ側オンなら Periodic Background Sync も張り直す。
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
       .then(() => {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && notifyEnabled) {
           return registerPeriodicSync();
         }
       })
       .catch(() => { /* SW登録失敗（非対応ブラウザ等）は通知機能のみ無効。本体は動く */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 通知オン後は、statsやプレイヤー名が変わるたびにSW用スナップショットを最新化する。
+  // 通知オン/オフ設定を永続化する。
+  useEffect(() => {
+    localStorage.setItem('notifyEnabled', notifyEnabled ? 'true' : 'false');
+  }, [notifyEnabled]);
+
+  // 通知が動く状態のときは、statsやプレイヤー名が変わるたびにSW用スナップショットを最新化する。
   useEffect(() => {
     if (notifyPerm !== 'granted') return;
-    saveNotifySnapshot(stats, playerName);
-  }, [stats, playerName, notifyPerm]);
+    saveNotifySnapshot(stats, playerName, notifyEnabled);
+  }, [stats, playerName, notifyPerm, notifyEnabled]);
 
   // 前景チェックの補助：アプリをバックグラウンドに回したときや一定間隔で、SWに鍛えどきチェックを促す。
   // （SW側は表示中のウィンドウがあるとOS通知を抑制するので、開いている最中に鳴ることはない）
   useEffect(() => {
-    if (notifyPerm !== 'granted' || !('serviceWorker' in navigator)) return;
+    if (!notifyActive || !('serviceWorker' in navigator)) return;
     const ping = () => {
       navigator.serviceWorker.ready.then(reg => reg.active?.postMessage({ type: 'check' })).catch(() => {});
     };
@@ -2742,7 +2794,7 @@ function App() {
       document.removeEventListener('visibilitychange', onVisibility);
       clearInterval(timer);
     };
-  }, [notifyPerm]);
+  }, [notifyActive]);
 
   // 「鍛えどき通知をオンにする」ボタンのハンドラ。許可を取り、スナップショット書き出しと定期同期登録を行う。
   const handleEnableNotifications = async () => {
@@ -2751,8 +2803,17 @@ function App() {
     if (perm === 'default') perm = await Notification.requestPermission();
     setNotifyPerm(perm);
     if (perm !== 'granted') return;
-    await saveNotifySnapshot(stats, playerName);
+    setNotifyEnabled(true);
+    await saveNotifySnapshot(stats, playerName, true);
     await registerPeriodicSync();
+  };
+
+  // 「通知をオフにする」ボタンのハンドラ。ブラウザ許可はJSから取り消せないため、
+  // アプリ側フラグをオフにし、SWが読むスナップショットに enabled:false を書いて定期同期も解除する。
+  const handleDisableNotifications = async () => {
+    setNotifyEnabled(false);
+    await setNotifyEnabledFlag(false);
+    await unregisterPeriodicSync();
   };
 
   useEffect(() => {
@@ -4150,14 +4211,23 @@ function App() {
         )}
         <h1 style={{ color: 'var(--text-primary)', fontSize: 'clamp(1.7rem, 8vw, 2.5rem)', margin: '0' }}>マッスル<br />モンスターズ</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
-        {playerName && (
+        <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+          {playerName && (
+            <button
+              onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
+              style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+            >
+              👤 {playerName} <span style={{ color: 'var(--text-secondary)' }}>✏️</span>
+            </button>
+          )}
           <button
-            onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
-            style={{ marginTop: '0.6rem', padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+            onClick={() => setShowSettingsModal(true)}
+            aria-label="設定"
+            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
           >
-            👤 {playerName} <span style={{ color: 'var(--text-secondary)' }}>✏️</span>
+            ⚙️ 設定
           </button>
-        )}
+        </div>
       </div>
 
 
@@ -4197,37 +4267,6 @@ function App() {
               </div>
             );
           })()}
-
-          {/* 鍛えどき通知（サーバー不要のプッシュ）のオン/オフ案内 */}
-          {notifySupported && (
-            <div className="glass-panel" style={{ textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
-              {notifyPerm === 'granted' ? (
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  🔔 鍛えどき通知：<span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>オン</span>
-                  <br />
-                  <span style={{ fontSize: '0.7rem' }}>
-                    部位が超回復（鍛えどき）になったらお知らせします。端末を閉じている間の通知はChrome/Android等の対応環境のみです。
-                  </span>
-                </p>
-              ) : notifyPerm === 'denied' ? (
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  🔕 通知はブロック中です。ブラウザのサイト設定から通知を許可すると、鍛えどきをお知らせできます。
-                </p>
-              ) : (
-                <>
-                  <button
-                    onClick={handleEnableNotifications}
-                    style={{ padding: '0.6rem 1.2rem', borderColor: 'var(--text-accent)', color: 'var(--text-accent)', fontWeight: 'bold' }}
-                  >
-                    🔔 鍛えどき通知をオンにする
-                  </button>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0' }}>
-                    部位が超回復して「狙い目」になったら通知でお知らせします（EXPボーナスのチャンス）
-                  </p>
-                </>
-              )}
-            </div>
-          )}
 
           {overworkAlerts.length > 0 && (
             <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
@@ -4479,22 +4518,6 @@ function App() {
       {activeTab === 'record' && (
         <div className="glass-panel" style={{ marginTop: '0' }}>
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>🏋️ 筋トレを記録する</h2>
-          
-          {/* 体重設定セクション */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>体重設定 (自重用):</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="number"
-                min="1"
-                inputMode="decimal"
-                value={bodyWeight}
-                onChange={e => setBodyWeight(Number(e.target.value) || 60)}
-                style={{ width: '70px', padding: '5px' }}
-              />
-              <span>kg</span>
-            </div>
-          </div>
 
           <form onSubmit={handleRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
             
@@ -4825,6 +4848,105 @@ function App() {
 
       {/* --- タブコンテンツ：大会 --- */}
       {activeTab === 'battle' && renderContest()}
+
+      {/* 設定画面：プレイヤー名・体重・通知などの設定項目を1画面にまとめたモーダル */}
+      {showSettingsModal && (
+        <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowSettingsModal(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '420px', width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <h1 style={{ color: 'var(--text-accent)', fontSize: '1.5rem', marginBottom: '1.2rem', textAlign: 'center' }}>⚙️ 設定</h1>
+
+            {/* プレイヤー名 */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1rem', marginBottom: '0.6rem' }}>👤 プレイヤー名</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                <span style={{ fontWeight: 'bold', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{playerName || '未登録'}</span>
+                <button
+                  onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
+                  style={{ flexShrink: 0, padding: '0.4rem 0.9rem', fontSize: '0.85rem', borderColor: 'var(--text-accent)', color: 'var(--text-accent)' }}
+                >
+                  変更する
+                </button>
+              </div>
+            </div>
+
+            {/* 体重設定（自重種目用） */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1rem', marginBottom: '0.6rem' }}>⚖️ 体重設定（自重種目用）</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>自重種目のEXP計算に使います</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                  <input
+                    type="number"
+                    min="1"
+                    inputMode="decimal"
+                    value={bodyWeight}
+                    onChange={e => setBodyWeight(Number(e.target.value) || 60)}
+                    style={{ width: '70px', padding: '5px' }}
+                  />
+                  <span>kg</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 鍛えどき通知 */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1rem', marginBottom: '0.6rem' }}>🔔 鍛えどき通知</h2>
+              <div style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                {!notifySupported ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    お使いのブラウザは通知に対応していません。
+                  </p>
+                ) : notifyPerm === 'denied' ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    🔕 通知はブラウザでブロック中です。ブラウザのサイト設定から通知を許可すると、鍛えどきをお知らせできます。
+                  </p>
+                ) : notifyActive ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem' }}>
+                      <span style={{ fontSize: '0.9rem' }}>
+                        鍛えどき通知：<span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>オン</span>
+                      </span>
+                      <button
+                        onClick={handleDisableNotifications}
+                        style={{ flexShrink: 0, padding: '0.4rem 0.9rem', fontSize: '0.85rem', borderColor: 'var(--text-secondary)', color: 'var(--text-secondary)' }}
+                      >
+                        オフにする
+                      </button>
+                    </div>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
+                      部位が超回復（鍛えどき）になったらお知らせします。端末を閉じている間の通知はChrome/Android等の対応環境のみです。
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem' }}>
+                      <span style={{ fontSize: '0.9rem' }}>
+                        鍛えどき通知：<span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>オフ</span>
+                      </span>
+                      <button
+                        onClick={handleEnableNotifications}
+                        style={{ flexShrink: 0, padding: '0.4rem 0.9rem', fontSize: '0.85rem', borderColor: 'var(--text-accent)', color: 'var(--text-accent)', fontWeight: 'bold' }}
+                      >
+                        オンにする
+                      </button>
+                    </div>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
+                      部位が超回復して「狙い目」になったら通知でお知らせします（EXPボーナスのチャンス）。
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              style={{ width: '100%', padding: '0.7rem', fontSize: '0.95rem', fontWeight: 'bold', background: 'var(--text-accent)', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* プレイヤー登録モーダル：未登録なら初回起動時に表示。登録した名前をキャラが呼んでくれる */}
       {showPlayerModal && (

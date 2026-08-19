@@ -75,6 +75,8 @@ async function runCheck() {
 
   const state = await idbGet(db, 'state', 'current');
   if (!state || !Array.isArray(state.muscles)) return;
+  // アプリ側で通知をオフにしている場合は何も出さない（旧スナップショットは enabled 未定義＝オン扱い）。
+  if (state.enabled === false) return;
 
   const now = Date.now();
   const ready = [];
