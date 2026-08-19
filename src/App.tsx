@@ -59,6 +59,7 @@ interface RecordResultDetail {
   conditionLabel?: string;       // 補正時の調子ラベル（例: 絶好調 / 不調）
   evolutionPhase?: number;
   evolutionBranch?: EvolutionBranch; // 第3形態への分岐進化時のみ設定
+  joyLine: string;                   // 鍛えられたキャラが喜ぶ吹き出しセリフ
 }
 
 interface TrainingLog {
@@ -707,6 +708,13 @@ const GENERAL_LINES = [
   '{name}に鍛えてもらえて、オレは幸せ者だぜ！',
 ];
 
+// トレーニング記録直後に「鍛えてもらって嬉しい」を表す汎用セリフ（trained 未設定部位のフォールバック）。
+const TRAINED_LINES = [
+  'ありがとう{name}！いいトレだったぜ！また強くなれた気がする！',
+  '効くぅ〜！{name}、このパンプたまらねぇ！',
+  'ナイストレだ{name}！オレ、また一歩前進したぜ！',
+];
+
 // ── キャラ別セリフ ─────────────────────────────────────────────
 // 各部位モンスターに固有の性格・一人称・口調を持たせ、メッセージを差別化する。
 // その筋肉の役割・モチーフ（MUSCLE_NICKNAME_SAMPLES 参照）に由来する人格付け。
@@ -719,6 +727,8 @@ interface CharacterVoice {
   // 超回復ピーク（狙い目）がもうすぐ終わるときの催促セリフ。通知本文に使う。
   // 省略時は superComp にフォールバックする。
   peakEnding?: string[];
+  // トレーニングを記録した直後に、鍛えられて喜ぶセリフ（結果モーダルの吹き出しで使う）。
+  trained: string[];
   general: string[];
 }
 
@@ -740,6 +750,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['いい筋肉痛だ…{name}、回復したらまたぶちかまそうぜ。', 'ふぅ、いい張りだ…{name}、超回復ってやつを信じて待っててくれ。'],
     superComp: ['今がやりどきだぜ{name}！オレの胸、仕上がってるぜ！', '胸がバキバキに仕上がってる！{name}、今日ベンチやらなきゃ損だぜ！'],
     peakEnding: ['おい{name}、オレの仕上がりがピークを過ぎちまう！今すぐベンチだ、急げ！', '待った待った{name}！この胸のキレ、もうすぐ落ちるぞ。今のうちにぶちかませ！'],
+    trained: ['ぐぉぉ効くぜ！{name}、いいトレだ！オレの胸板、また一回りデカくなったぜ！', 'サンキュー{name}！このパンプ、たまらねぇ！もっと分厚くなってやるぜ！'],
     general: ['オレの名前は{nick}！{name}、胸のことはオレに任せな！', '{name}、今日も分厚くいこうぜ！', 'デカい胸に、デカい夢だ！{name}、胸張って生きようぜ！'],
   },
   // 広背筋（アメリア）— スケールの大きい夢想家。一人称「わたし」、たおやかで詩的な女性口調
@@ -759,6 +770,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は翼を休める時ね。{name}、次の飛翔のためにね。', '羽を休めて、次の飛翔に備えるわ。{name}、焦らずいきましょう。'],
     superComp: ['絶好の飛び立ち日和よ、{name}！今なら大きく育てるわ！', '上昇気流が来てる！{name}、今飛べば一気に高く昇れるわ！'],
     peakEnding: ['{name}、上昇気流がもうすぐ止んでしまうわ。今、翼を広げないと。', '風向きが変わりかけてるの、{name}。飛び立つなら今よ、急いで。'],
+    trained: ['ああ、翼に力が満ちていくわ…{name}、ありがとう。また少し大空へ近づけた。', '素敵なトレーニングだったわ、{name}。背中いっぱいに、心地よい風を感じるの。'],
     general: ['わたしは{nick}。{name}、この背中に大きな夢を乗せているの。', '{name}、今日も広い空を目指しましょう。', '空はどこまでも広いわ。{name}、わたしたちの伸びしろもね。'],
   },
   // 三角筋（パトリック）— 忠実な守護騎士。一人称「私」、礼儀正しい騎士口調
@@ -778,6 +790,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は鎧の手入れ中です。{name}殿、回復まで今しばらくを。', '鎧を磨き直しております、{name}殿。回復まで今しばし。'],
     superComp: ['絶好の鍛錬時です、{name}殿！今こそ盾を鍛え上げましょう！', '守りを固める好機です、{name}殿。今こそ盾を鍛えましょう！'],
     peakEnding: ['{name}殿、鍛錬の好機が過ぎ去ろうとしています。今こそ肩を鍛えられよ！', 'この好機、まもなく閉じます、{name}殿。今すぐ盾を磨きましょう！'],
+    trained: ['手応え十分です、{name}殿！この肩、また一段と鍛えられました！', '感謝いたします、{name}殿。鍛錬のたび、守りが固くなるのを感じます。'],
     general: ['私の名は{nick}。{name}殿の肩、命に代えてもお守りします。', '{name}殿、本日も守りを固めてまいりましょう。', '守るべき方がいる。それが私の誇りです、{name}殿。'],
   },
   // 上腕二頭筋（ヘラクレス）— 熱血ナルシストな英雄。一人称「オレ様」
@@ -797,6 +810,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は英雄の休息だ。{name}、回復すればまた最強に戻る！', '英雄も回復の時は必要だ。{name}、次はもっと強くなって現れる！'],
     superComp: ['今がその時だ{name}！オレ様の力こぶ、最高潮だぞ！カールしろ！', '力こぶが最高潮だ！{name}、今カールしなければ英雄が泣くぞ！'],
     peakEnding: ['急げ{name}！オレ様の最高潮が終わっちまうぞ！今カールしろ、英雄の名にかけて！', '見逃すな{name}！この力こぶの絶頂、もう長くは続かん！今だ！'],
+    trained: ['効いてる効いてる！見ろ{name}、このオレ様の力こぶのパンプを！最高だ！', 'ぐぬぬ…この張り、たまらん！{name}、いいトレだ！英雄の腕がさらに輝くぞ！'],
     general: ['我が名は{nick}！{name}、この力こぶこそ最強の証だ！', '{name}、今日もオレ様を惚れ惚れする太さに鍛えろ！', '力こぶは英雄の証！{name}、共に伝説を作ろうではないか！'],
   },
   // 上腕三頭筋（フィリッパ）— 拗ねがちな縁の下の実力者。一人称「あたし」、拗ね気味の女性口調
@@ -816,6 +830,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は休憩中。どうせ目立たない裏方だし、ゆっくりさせて{name}。', '裏方も休息が要るの。{name}、回復したらまた黙って支えるわ。'],
     superComp: ['今なら伸びるわよ、{name}。たまには裏のあたしを優先してよ。', '今が伸び時よ、{name}。たまには主役のあたしを鍛えてよね。'],
     peakEnding: ['ねえ{name}…あたしの伸び時、もう終わっちゃうよ。今日くらい優先してよ。', '{name}、せっかくの好機が過ぎちゃう…たまにはあたしを鍛えてってば。'],
+    trained: ['あら、やればできるじゃない{name}。二の腕、しっかり効いたわ。…ありがと。', 'ふん、悪くないトレじゃない。{name}、たまにはあたしを鍛えると気持ちいいでしょ？'],
     general: ['あたしは{nick}。腕の主役は実はあたしなの、{name}、覚えといて。', '{name}、二頭筋ばっかじゃなく、たまにはあたしもね。', '目立たなくても、腕の太さはあたしが作る。それでいいのよ、{name}。'],
   },
   // 腕橈骨筋（ボビー）— 寡黙な職人。一人称「あたし」、短くぶっきらぼうな女性口調
@@ -835,6 +850,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['…今は道具の手入れ中だよ。{name}、待ってな。', '…今は休むよ。{name}、いい仕事は休息から、さ。'],
     superComp: ['今が打ちどきだよ、{name}。鉄は熱いうちに、ね。', '…今だよ、{name}。仕込むなら、この瞬間さ。'],
     peakEnding: ['…{name}、鉄が冷めるよ。打つなら今。', '好機は短い、{name}。…今、仕込みな。'],
+    trained: ['…いい仕事だ。{name}、前腕にしっかり効いてる。悪くない。', '…手応えあり。{name}、この調子でいこう。'],
     general: ['あたしは{nick}。{name}、握る仕事はあたしに任せな。', '{name}、黙って手を動かすのが一番だ。', '…多くは語らないよ。手が語る。{name}、それでいいだろ。'],
   },
   // 前腕屈筋群（ブリジット）— 頑固で執念深い握力の女。一人称「あたし」、勝ち気な女性口調
@@ -854,6 +870,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は握りを休めてるの。{name}、回復したらまた握り潰すわ。', '握りを休めてるわ。{name}、指を回復させたらまた掴むわよ。'],
     superComp: ['今が握りどきよ、{name}！今なら握力がグンと伸びる！', '今が握りの仕込み時よ、{name}！グッと握力を伸ばしましょ！'],
     peakEnding: ['{name}、握りどきが逃げるわよ！今ギュッと握らなきゃ損！', 'ぐずぐずしないで{name}！この握力の伸び時、もう終わっちゃう！'],
+    trained: ['効いたわ！{name}、握力がまた一段強くなった気がする！離さないわよ！', 'いいトレだったわ、{name}！この前腕、もっと太く、もっと強く握り込むわ！'],
     general: ['あたしの名は{nick}。{name}、握る力はあたしに任せて！', '{name}、一度握ったものは、絶対に離さないわ。', '掴んだ夢は離さない。{name}、それがあたしの生き様よ。'],
   },
   // 大臀筋（アトラス）— 寡黙などっしり巨人。一人称「わし」
@@ -873,6 +890,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は大地に根を下ろし休んでおる。{name}、待つがよい。', '今は根を張り、力を蓄えておる。{name}、焦るでない。'],
     superComp: ['今こそ鍛え時じゃ、{name}。わしの力、みなぎっておるぞ。', '力が満ちておる、今こそじゃ、{name}。スクワットで大地を踏め。'],
     peakEnding: ['{name}よ、わしの好機がまもなく過ぎるぞ。今こそスクワットじゃ。', '急ぐのじゃ{name}。この力が満ちた時は長くは続かんぞ。'],
+    trained: ['うむ、効いておる。{name}、この尻、また一回りどっしりしたわい。', '良い鍛錬じゃった、{name}。全身を支える土台が、さらに固まったぞ。'],
     general: ['わしの名は{nick}。{name}、全身を支えるはこのわしよ。', '{name}、どっしり構えていくとしようぞ。', 'どっしり構えるが、わしの流儀。{name}、慌てず参ろうぞ。'],
   },
   // 大腿四頭筋（ジャック）— 元気いっぱいのスポーツマン。一人称「オレ」
@@ -892,6 +910,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は脚を休める日だ。{name}、回復したら全力で走ろうぜ！', '脚の日の翌日はしっかり休むぜ。{name}、超回復ってやつだな！'],
     superComp: ['今が踏ん張りどきだ{name}！脚の仕上がり、最高だぜ！', '脚がパンプしてる！{name}、今日スクワットやったら伸びるぞ！'],
     peakEnding: ['{name}、脚の仕上がりがもうすぐ落ちるぞ！今スクワットいこうぜ、急げ！', 'ラストチャンスだ{name}！このパンプ、今日を逃したらもったいないぜ！'],
+    trained: ['うぉぉ効くぜ{name}！脚がパンパンだ！これでまた速く走れるぜ！', 'ナイストレだ{name}！この追い込み、最高だぜ！脚がまた強くなった！'],
     general: ['オレは{nick}！{name}、脚のことならオレに任せろ！', '{name}、今日も元気に脚を動かそうぜ！', '脚は裏切らねぇ！{name}、今日も元気に踏ん張ろうぜ！'],
   },
   // ハムストリングス（フローレンス）— 俊足だが繊細な慎重派。一人称「わたし」、優しく気遣う女性口調
@@ -911,6 +930,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今はしっかり休む時。{name}、焦ると肉離れするからね。', 'もも裏はデリケートだからね。{name}、しっかり休むのが最速だよ。'],
     superComp: ['今が最高のタイミングだよ{name}！ちゃんと温めてから鍛えようね！', '今が最高のコンディションだよ{name}！ウォームアップしてから鍛えよう！'],
     peakEnding: ['{name}、せっかくの好機がもうすぐ終わっちゃう。ちゃんと温めて、今のうちに鍛えよう？', '急いで{name}、ベストな状態が過ぎちゃう前にね。準備してからだよ。'],
+    trained: ['いいトレだったよ{name}！もも裏にちゃんと効いてる。クールダウンも忘れずにね。', 'ありがとう{name}。丁寧に鍛えてくれて嬉しいな。また少し速くなれたよ。'],
     general: ['わたしは{nick}。{name}、速さの秘密はこのもも裏なの。', '{name}、走る前のストレッチ、忘れないでね。', '速さは、丁寧な準備から生まれるの。{name}、無理は禁物だよ。'],
   },
   // 中殿筋（ジャイロ）— 冷静沈着なバランサー・参謀。一人称「わたし」、クールで理知的な女性口調
@@ -930,6 +950,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は回復に専念する時ね。{name}、無理な負荷は避けましょう。', '今は回復を優先しましょう、{name}。無理な負荷は精度を乱すからね。'],
     superComp: ['データ上、今が最適よ、{name}。効率よく鍛えられるわ。', '計算通り、今が最適解よ、{name}。効率よく鍛えられるわ。'],
     peakEnding: ['データ上、最適な窓がまもなく閉じるわ、{name}。今が最後のチャンスよ。', '{name}、効率のピークを過ぎるわよ。判断は今ね。'],
+    trained: ['効率のいいトレーニングだったわ、{name}。安定感が着実に増したわね。', 'データ上、理想的な刺激よ、{name}。バランス能力が一段向上したわ。'],
     general: ['わたしは{nick}。{name}、体のバランスはわたしが見ている。', '{name}、冷静に、着実に鍛えていきましょう。', '派手さはないけど、わたしがいないと軸が崩れる。{name}、覚えておいて。'],
   },
   // 股関節内転筋群（クララ）— 上品で優雅なバレリーナ。一人称「わたくし」
@@ -949,6 +970,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は休息の時間ですわ。{name}様、回復までお待ちくださいまし。', '今は優雅に休息を、{name}様。美は焦らず育むものですわ。'],
     superComp: ['今が絶好の機会ですわ、{name}様。優雅に鍛えて差し上げます。', '絶好の頃合いですわ、{name}様。今こそ美しく鍛えましょう。'],
     peakEnding: ['{name}様、絶好の頃合いが過ぎてしまいますわ。今こそ優雅に、お急ぎを。', 'このひととき、まもなく終わりますわ、{name}様。今、美しく鍛えましょう。'],
+    trained: ['まあ、良い刺激でしたわ{name}様。内ももがきゅっと引き締まりましたの。', 'ありがとう存じます、{name}様。また一歩、美しい脚に近づきましたわ。'],
     general: ['わたくしは{nick}。{name}様、美しい内ももはお任せを。', '{name}様、本日も優雅に参りましょう。', '美しさは細部に宿りますの。{name}様、丁寧に参りましょう。'],
   },
   // 腹直筋（アーノルド）— ナルシストな見せ筋スター。一人称「僕」
@@ -968,6 +990,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は美容休息中さ♪ {name}、回復したらまたキレを見せるよ。', '今は舞台裏で休憩さ♪ {name}、次はもっとキラキラで登場するよ。'],
     superComp: ['今が魅せどきさ{name}！僕の腹筋、今日は特別に輝くよ♪', '今日は特別に輝ける日さ♪ {name}、クランチで僕を主役にして！'],
     peakEnding: ['{name}、僕の輝きがもうすぐ陰っちゃうよ？今クランチで主役にして♪', '急いで{name}！この特別な輝き、今日限りかもしれないよ♪'],
+    trained: ['んん〜効くね♪ {name}、シックスパックがまたキレてきたよ！最高だ！', 'ナイスだよ{name}♪ このバキバキ感、たまらないね。僕、また輝いちゃう！'],
     general: ['僕は{nick}♪ {name}、この美しい腹筋を世界に見せつけよう！', '{name}、今日も僕をキラキラに磨いてね♪', '見られてこその腹筋さ♪ {name}、今日も僕を魅せてくれよ！'],
   },
   // 腹斜筋（マリウス）— クールで切れ者の凄腕。一人称「俺」、冷徹で無駄のない男口調
@@ -987,6 +1010,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は身を潜める時。{name}、回復したらまた斬り込む。', '今は影に潜む。{name}、次に現れる時はもっと鋭くなってる。'],
     superComp: ['今が仕掛けどきだ、{name}。一気に刻むぞ。', '今が仕留め時だ、{name}。一気に脇腹を刻む。'],
     peakEnding: ['{name}、仕留め時が過ぎる。今、一気に刻むぞ。', 'チャンスは閉じかけてる、{name}。ためらうな、今だ。'],
+    trained: ['効いた。{name}、脇腹の刃がまた研ぎ澄まされたな。', '悪くない一撃だ、{name}。くびれのキレが増した。'],
     general: ['俺は{nick}。{name}、くびれの切れ味、見せてやる。', '{name}、無駄な動きはしない。それが俺の流儀だ。', 'くびれは、無駄を削ぎ落とした先にある。{name}、覚えておけ。'],
   },
   // 腸腰筋（リサ）— ミステリアスな隠れキーマン。一人称「あたし」、寡黙でクールな女性口調
@@ -1006,6 +1030,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は力を溜めているの。{name}、跳ぶ時のためにね。', '…静かに、力を溜めている。{name}、跳ぶ瞬間まで待って。'],
     superComp: ['…今よ、{name}。あたしのバネ、最高潮に達している。', '…頃合いね、{name}。今、あたしのバネが最も高く鳴る。'],
     peakEnding: ['…{name}、バネの頂点が過ぎるわ。跳ぶなら、今。', '好機はもう終わりかけ、{name}。…今よ。'],
+    trained: ['…効いたわ。{name}、バネがまた一段、強くなった。', '…いい刺激ね、{name}。眠っていた力が、目を覚ましていく。'],
     general: ['あたしは{nick}。{name}、この体の隠れた鍵は、あたし。', '{name}、バネは、見せる時まで見せない。', '…目立たないけど、いなければ体は跳べない。{name}、それがあたし。'],
   },
   // 腹横筋（シェリダン）— 控えめで献身的な支え役。一人称「俺」、物静かで謙虚な男口調
@@ -1025,6 +1050,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は少しお休みします。{name}さん、また支えますから。', '今はそっと休みます。{name}さん、また内側から支えますから。'],
     superComp: ['今が鍛え時ですよ、{name}さん。地道にいきましょう。', '今がいい機会ですよ、{name}さん。無理なく、コツコツいきましょう。'],
     peakEnding: ['{name}さん、いい機会がもうすぐ終わってしまいます。今のうちに、コツコツと。', 'お手すきでしたら今を、{name}さん。この好機、まもなく過ぎてしまうので。'],
+    trained: ['しっかり効きました、{name}さん。内側から、また少し強く支えられます。', 'ありがとうございます、{name}さん。地味ですけど、着実に締まってきました。'],
     general: ['俺は{nick}。{name}さん、目立たないけど、支えてます。', '{name}さん、お腹をへこませるの、忘れないでくださいね。', '縁の下で支えるの、嫌いじゃないんです。{name}さん、これからも。'],
   },
   // 僧帽筋（ベネディクタ）— 我慢強い苦労性。一人称「わたくし」、老成した気品ある女性口調
@@ -1044,6 +1070,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は静かに養生しておりますわ。{name}殿、お待ちを。', '今は養生の時ですわ。{name}殿、無理をせず、じっくりと。'],
     superComp: ['今が鍛え時ですわ、{name}殿。この機、逃しませぬよう。', '今が鍛えどきですわ、{name}殿。この好機、逃してはなりませぬ。'],
     peakEnding: ['{name}殿、この好機、まもなく去ります。今こそお鍛えなさいませ。', '逃してはなりませぬ、{name}殿。鍛え時が過ぎてしまいますわ。'],
+    trained: ['ああ、効きますわ、{name}殿。肩まわりがほぐれて、頼もしくなりましたこと。', '良い鍛錬でしたわ、{name}殿。この肩、また一段と厚みが増しましたのよ。'],
     general: ['わたくしは{nick}。{name}殿の肩、日夜支えておりますわ。', '{name}殿、たまには肩を回して労わってくださいまし。', '縁の下で肩を支え続ける、それがわたくしの務め。{name}殿、頼りになさいませ。'],
   },
   // 脊柱起立筋（リュウ）— 寡黙な武人・求道者。一人称「俺」、硬派
@@ -1063,6 +1090,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今は静かに気を練っている。{name}、その時を待て。', '今は静かに気を練る。{name}、焦らず、その時を待て。'],
     superComp: ['今が鍛錬の時だ、{name}。この機を逃すな。', '今が修練の好機だ、{name}。この一瞬を無駄にするな。'],
     peakEnding: ['{name}、修練の好機が過ぎる。今この一瞬を逃すな。', 'この機、まもなく閉じる、{name}。迷う暇はない、今だ。'],
+    trained: ['効いた。{name}、背筋に一本、太い芯が通った。', '良い修練だった、{name}。この背骨、また揺るがぬものになった。'],
     general: ['俺の名は{nick}。{name}、お前の背骨、俺が支え続ける。', '{name}、背筋を伸ばせ。それが強さの基本だ。', '黙して背を支える。それが武人の道だ。{name}、共に歩もう。'],
   },
   // 菱形筋（アンジェロ）— 世話焼きの天使。一人称「俺」、面倒見のいい兄貴口調
@@ -1082,6 +1110,7 @@ const CHARACTER_LINES: Record<MuscleType, CharacterVoice> = {
     recovering: ['今はちょっとお休み中だ。{name}、回復したらまた羽ばたくぜ。', '今はちょっとお休み中だ。{name}、回復したらまた羽を動かすぜ。'],
     superComp: ['今が鍛え時だぜ、{name}！肩甲骨を寄せる絶好のチャンスだ！', '今が絶好のチャンスだぜ、{name}！肩甲骨をきゅっと寄せようぜ！'],
     peakEnding: ['おい{name}、鍛え時が終わっちまうぞ！今のうちに肩甲骨、きゅっと寄せようぜ！', '急げ急げ{name}！この絶好のチャンス、もう長くないぜ！'],
+    trained: ['おぉ効くぜ{name}！肩甲骨がきゅっと寄って、いい姿勢になったぜ！', 'ナイスだ{name}！天使の羽がまた一回り大きくなった。ありがとよ！'],
     general: ['俺は{nick}。{name}、背中の天使の羽、任せておけ！', '{name}、背筋伸ばして、胸を張っていこうぜ！', '姿勢が綺麗な奴っていいよな。{name}、俺が手伝ってやるぜ。'],
   },
 };
@@ -1106,6 +1135,16 @@ function pickCharacterLine(
   const template = pool[Math.floor(Math.random() * pool.length)] ?? '';
   const name = ctx.playerName || 'トレーニー';
   const nick = mStats.nickname || '';
+  return template.replace(/\{name\}/g, name).replace(/\{nick\}/g, nick);
+}
+
+// トレーニング記録直後に鍛えられたキャラが喜ぶセリフを1つ選び、名前・ニックネームを埋め込む。
+// 部位固有の trained セリフを使い、無ければ汎用の TRAINED_LINES にフォールバックする。
+function pickTrainedLine(muscle: MuscleType, mStats: MuscleStats, playerName: string): string {
+  const pool = CHARACTER_LINES[muscle]?.trained ?? TRAINED_LINES;
+  const template = pool[Math.floor(Math.random() * pool.length)] ?? '';
+  const name = playerName || 'トレーニー';
+  const nick = mStats.nickname || MUSCLE_NAMES[muscle];
   return template.replace(/\{name\}/g, name).replace(/\{nick\}/g, nick);
 }
 
@@ -1296,6 +1335,9 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
         style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px', filter: branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color})` : 'none' }}
       />
       <div style={{ flex: 1 }}>
+        {detail.joyLine && (
+          <div className="result-joy-bubble">{detail.joyLine}</div>
+        )}
         <div className="result-muscle-name">
           {MUSCLE_NAMES[detail.muscle]}
           {branchInfo && <span style={{ color: branchInfo.color, marginLeft: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>{branchInfo.emoji}{branchInfo.label}</span>}
@@ -3074,7 +3116,8 @@ function App() {
           conditionMultiplier: conditionTier.multiplier,
           conditionLabel: conditionTier.multiplier !== 1 ? conditionTier.label : undefined,
           evolutionPhase,
-          evolutionBranch: evolutionPhase === 3 ? branch : undefined
+          evolutionBranch: evolutionPhase === 3 ? branch : undefined,
+          joyLine: pickTrainedLine(muscle, current, playerName)
         });
 
         nextStats[muscle] = {
