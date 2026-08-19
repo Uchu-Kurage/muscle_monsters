@@ -133,13 +133,17 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'push_up', name: '腕立て伏せ', primaryMuscle: 'chest', isBodyweight: true, targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'triceps', expRatio: 0.5}, {muscle: 'abs', expRatio: 0.2}], description: '手を肩幅よりやや広くつき、体を一直線に保ったまま腕の曲げ伸ばしを行います。' },
   { id: 'dumbbell_fly', name: 'ダンベルフライ', primaryMuscle: 'chest', targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.2}], description: '仰向けでダンベルを持ち、鳥が羽ばたくように腕を開閉させ大胸筋をストレッチさせます。' },
   { id: 'chest_press', name: 'チェストプレス', primaryMuscle: 'chest', targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'triceps', expRatio: 0.4}], description: 'マシンに座り、グリップを前に押し出して大胸筋を鍛える安全な種目です。' },
-  
+  { id: 'wide_push_up', name: 'ワイドプッシュアップ', primaryMuscle: 'chest', isBodyweight: true, targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.3}, {muscle: 'triceps', expRatio: 0.3}], description: '手幅を肩幅より大きく広げて行う腕立て伏せ。大胸筋の外側を強くストレッチさせて鍛えます。' },
+  { id: 'decline_push_up', name: 'デクラインプッシュアップ', primaryMuscle: 'chest', isBodyweight: true, targets: [{muscle: 'chest', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.4}, {muscle: 'triceps', expRatio: 0.4}], description: '足を椅子やベンチに乗せ、頭を低くして行う腕立て伏せ。大胸筋上部と肩に効きます。' },
+
   // 背中 (Back)
   { id: 'pull_up', name: '懸垂（チンニング）', primaryMuscle: 'back', isBodyweight: true, targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'biceps', expRatio: 0.6}, {muscle: 'rhomboids', expRatio: 0.4}], description: 'バーにぶら下がり、肩甲骨を寄せるようにして体を持ち上げます。' },
   { id: 'deadlift', name: 'デッドリフト', primaryMuscle: 'back', targets: [{muscle: 'erector_spinae', expRatio: 1.0}, {muscle: 'back', expRatio: 0.8}, {muscle: 'glutes', expRatio: 0.6}, {muscle: 'hamstrings', expRatio: 0.5}], description: '床にあるバーベルを、背筋を伸ばしたまま立ち上がりながら持ち上げる全身運動です。' },
   { id: 'lat_pulldown', name: 'ラットプルダウン', primaryMuscle: 'back', targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'biceps', expRatio: 0.4}, {muscle: 'rhomboids', expRatio: 0.3}], description: 'マシンに座り、上からバーを胸の前に引き下ろして広背筋を鍛えます。' },
   { id: 'bent_over_row', name: 'ベントオーバーロウ', primaryMuscle: 'back', targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'rhomboids', expRatio: 0.8}, {muscle: 'erector_spinae', expRatio: 0.5}], description: '前傾姿勢でバーベルやダンベルをお腹に向かって引き上げます。' },
-  
+  { id: 'inverted_row', name: '斜め懸垂（インバーテッドロウ）', primaryMuscle: 'back', isBodyweight: true, targets: [{muscle: 'back', expRatio: 1.0}, {muscle: 'rhomboids', expRatio: 0.7}, {muscle: 'biceps', expRatio: 0.5}, {muscle: 'trapezius', expRatio: 0.3}], description: '低い位置のバーの下に潜り込み、体を斜めに保ったまま胸を引き寄せます。懸垂ができなくても背中を鍛えられます。' },
+  { id: 'superman', name: 'スーパーマン', primaryMuscle: 'erector_spinae', isBodyweight: true, targets: [{muscle: 'erector_spinae', expRatio: 1.0}, {muscle: 'back', expRatio: 0.6}, {muscle: 'glutes', expRatio: 0.4}], description: 'うつ伏せで両手両足を同時に持ち上げ、飛ぶような姿勢をキープして背面全体を鍛えます。' },
+
   // 僧帽筋 (Trapezius)
   { id: 'shrug', name: 'シュラッグ', primaryMuscle: 'trapezius', targets: [{muscle: 'trapezius', expRatio: 1.0}], description: '両手に重量を持ち、肩をすくめるようにして僧帽筋を鍛えます。' },
   { id: 'upright_row', name: 'アップライトロウ', primaryMuscle: 'trapezius', targets: [{muscle: 'trapezius', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.6}], description: 'バーベルやダンベルを体の前に持ち、肘を高く上げるように引き上げます。' },
@@ -157,40 +161,49 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'shoulder_press', name: 'ショルダープレス', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'triceps', expRatio: 0.5}, {muscle: 'chest', expRatio: 0.2}], description: '鎖骨の前から頭上へダンベルやバーベルを押し上げます。' },
   { id: 'side_raise', name: 'サイドレイズ', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}], description: '両手にダンベルを持ち、腕を横に広げて持ち上げ、肩の横側を鍛えます。' },
   { id: 'front_raise', name: 'フロントレイズ', primaryMuscle: 'shoulder', targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.2}], description: '両手にダンベルを持ち、腕を前に向かって持ち上げ、肩の前側を鍛えます。' },
-  
+  { id: 'pike_push_up', name: 'パイクプッシュアップ', primaryMuscle: 'shoulder', isBodyweight: true, targets: [{muscle: 'shoulder', expRatio: 1.0}, {muscle: 'triceps', expRatio: 0.5}, {muscle: 'chest', expRatio: 0.2}], description: 'お尻を高く突き上げた「く」の字姿勢で頭を床に近づけ、自重で三角筋を鍛えます。' },
+
   // 上腕二頭筋 (Biceps)
   { id: 'biceps_curl', name: 'アームカール', primaryMuscle: 'biceps', targets: [{muscle: 'biceps', expRatio: 1.0}, {muscle: 'brachioradialis', expRatio: 0.3}], description: '肘を固定し、バーベルやダンベルを巻き上げるように持ち上げ上腕二頭筋を鍛えます。' },
   { id: 'incline_curl', name: 'インクラインダンベルカール', primaryMuscle: 'biceps', targets: [{muscle: 'biceps', expRatio: 1.0}], description: 'ベンチの背もたれに斜めに寄りかかり、上腕二頭筋を最大伸展させて鍛えます。' },
   { id: 'hammer_curl', name: 'ハンマーカール', primaryMuscle: 'biceps', targets: [{muscle: 'biceps', expRatio: 0.7}, {muscle: 'brachioradialis', expRatio: 1.0}], description: '手のひらを内側（縦）に向けたままダンベルを持ち上げ、腕橈骨筋と二頭筋を同時に鍛えます。' },
-  
+  { id: 'chin_up', name: '逆手懸垂（チンアップ）', primaryMuscle: 'biceps', isBodyweight: true, targets: [{muscle: 'biceps', expRatio: 1.0}, {muscle: 'back', expRatio: 0.8}, {muscle: 'rhomboids', expRatio: 0.3}], description: '手のひらを自分に向けてバーを握り、体を引き上げます。順手より上腕二頭筋に強く効く自重種目です。' },
+
   // 上腕三頭筋 (Triceps)
   { id: 'french_press', name: 'フレンチプレス', primaryMuscle: 'triceps', targets: [{muscle: 'triceps', expRatio: 1.0}], description: '頭上で重量を持ち、肘を曲げて頭の後ろに下ろし、上腕三頭筋を鍛えます。' },
   { id: 'kick_back', name: 'キックバック', primaryMuscle: 'triceps', targets: [{muscle: 'triceps', expRatio: 1.0}], description: '前傾姿勢で肘を固定し、腕を後ろに伸ばすようにダンベルを動かします。' },
   { id: 'dips', name: 'ディップス', primaryMuscle: 'triceps', isBodyweight: true, targets: [{muscle: 'triceps', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.6}, {muscle: 'shoulder', expRatio: 0.3}], description: '平行なバーに両手をつき、体を沈めてから押し上げる種目です。' },
   { id: 'narrow_bench_press', name: 'ナローベンチプレス', primaryMuscle: 'triceps', targets: [{muscle: 'triceps', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.5}, {muscle: 'shoulder', expRatio: 0.3}], description: '手幅を狭く握って行うベンチプレス。上腕三頭筋に強力な刺激を与えます。' },
-  
+  { id: 'bench_dips', name: 'ベンチディップス', primaryMuscle: 'triceps', isBodyweight: true, targets: [{muscle: 'triceps', expRatio: 1.0}, {muscle: 'shoulder', expRatio: 0.3}, {muscle: 'chest', expRatio: 0.2}], description: '椅子やベンチに手をつき、体を沈めてから押し上げます。ディップスより手軽な自重の三頭筋種目です。' },
+  { id: 'diamond_push_up', name: 'ダイヤモンドプッシュアップ', primaryMuscle: 'triceps', isBodyweight: true, targets: [{muscle: 'triceps', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.6}, {muscle: 'shoulder', expRatio: 0.2}], description: '両手の親指と人差し指でひし形を作って行う腕立て伏せ。上腕三頭筋を集中的に鍛えます。' },
+
   // 腕橈骨筋 (Brachioradialis)
   { id: 'reverse_curl', name: 'リバースカール', primaryMuscle: 'brachioradialis', targets: [{muscle: 'brachioradialis', expRatio: 1.0}, {muscle: 'forearm_flexors', expRatio: 0.4}], description: '手のひらを下に向けてバーベルを持ち上げ、前腕上部を集中して鍛えます。' },
   
   // 前腕屈筋群 (Forearm Flexors)
   { id: 'wrist_curl', name: 'リストカール', primaryMuscle: 'forearm_flexors', targets: [{muscle: 'forearm_flexors', expRatio: 1.0}], description: '前腕をベンチに固定し、手首を上に曲げて前腕の内側（屈筋群）を鍛えます。' },
   { id: 'reverse_wrist_curl', name: 'リバースリストカール', primaryMuscle: 'forearm_flexors', targets: [{muscle: 'forearm_flexors', expRatio: 1.0}], description: '手のひらを下に向けて手首を持ち上げ、前腕外側・手首を伸ばす筋肉を鍛えます。' },
+  { id: 'dead_hang', name: 'デッドハング（ぶら下がり）', primaryMuscle: 'forearm_flexors', isBodyweight: true, targets: [{muscle: 'forearm_flexors', expRatio: 1.0}, {muscle: 'brachioradialis', expRatio: 0.5}], description: 'バーに全体重でぶら下がり続けます。握力と前腕、腕橈骨筋を自重で鍛える種目です。' },
 
   // お尻 (Glutes)
   { id: 'hip_thrust', name: 'ヒップスラスト', primaryMuscle: 'glutes', targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.4}], description: '仰向けで肩をベンチに乗せ、バーベルを骨盤に乗せてお尻を持ち上げます。' },
   { id: 'back_kick', name: 'バックキック', primaryMuscle: 'glutes', isBodyweight: true, targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.3}], description: '四つん這いになり、片足を後ろへ蹴り上げるようにお尻を収縮させます。' },
   { id: 'bulgarian_squat', name: 'ブルガリアンスクワット', primaryMuscle: 'glutes', isBodyweight: true, targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'legs', expRatio: 0.8}, {muscle: 'hamstrings', expRatio: 0.5}], description: '片足を後ろのベンチに乗せ、もう片方の足で深くしゃがみ込みます。' },
-  
+  { id: 'glute_bridge', name: 'ヒップリフト（グルートブリッジ）', primaryMuscle: 'glutes', isBodyweight: true, targets: [{muscle: 'glutes', expRatio: 1.0}, {muscle: 'hamstrings', expRatio: 0.4}], description: '仰向けで膝を立て、お尻を天井に向けて持ち上げます。器具なしで大殿筋を鍛えられる定番種目です。' },
+
   // 中殿筋 (Gluteus Medius)
   { id: 'abduction', name: 'アブダクション', primaryMuscle: 'gluteus_medius', targets: [{muscle: 'gluteus_medius', expRatio: 1.0}], description: 'マシンに座り、膝を外側に開く動きでお尻の横側（中殿筋）を鍛えます。' },
   { id: 'clamshell', name: 'クラムシェル', primaryMuscle: 'gluteus_medius', isBodyweight: true, targets: [{muscle: 'gluteus_medius', expRatio: 1.0}], description: '横向きに寝て、貝殻が開くように上の膝を開き中殿筋を鍛えます。' },
-  
+  { id: 'side_leg_raise', name: 'サイドレッグレイズ', primaryMuscle: 'gluteus_medius', isBodyweight: true, targets: [{muscle: 'gluteus_medius', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.3}], description: '横向きに寝て、上側の脚をまっすぐ伸ばしたまま真上に持ち上げます。お尻の横（中殿筋）に効きます。' },
+
   // 脚・大腿四頭筋 (Legs)
   { id: 'squat', name: 'スクワット', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.8}, {muscle: 'hamstrings', expRatio: 0.5}, {muscle: 'erector_spinae', expRatio: 0.3}], description: '足を肩幅に開き、背筋を伸ばしたまま深くしゃがみ込む下半身の王様です。' },
   { id: 'leg_press', name: 'レッグプレス', primaryMuscle: 'legs', targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.6}], description: 'マシンに座り、足でプレートを押し上げて脚全体を鍛えます。' },
   { id: 'leg_extension', name: 'レッグエクステンション', primaryMuscle: 'legs', targets: [{muscle: 'legs', expRatio: 1.0}], description: 'マシンに座り、膝を伸ばす動きで太ももの前側（大腿四頭筋）を鍛えます。' },
   { id: 'lunge', name: 'ランジ', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.9}, {muscle: 'hamstrings', expRatio: 0.6}], description: '足を前後に開き、後ろの膝が床につく直前まで沈み込んでから立ち上がります。' },
-  
+  { id: 'jump_squat', name: 'ジャンプスクワット', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.7}, {muscle: 'hamstrings', expRatio: 0.4}], description: 'スクワットで沈み込んだ勢いでジャンプし、着地したらすぐ次へ。爆発力と脚の筋力を自重で鍛えます。' },
+  { id: 'wall_sit', name: 'ウォールシット（空気椅子）', primaryMuscle: 'legs', isBodyweight: true, targets: [{muscle: 'legs', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.3}], description: '壁に背中をつけ、太ももが床と平行になる姿勢をキープします。器具なしで大腿四頭筋を追い込めます。' },
+
   // 股関節内転筋群 (Adductors)
   { id: 'wide_squat', name: 'ワイドスクワット', primaryMuscle: 'adductors', isBodyweight: true, targets: [{muscle: 'adductors', expRatio: 1.0}, {muscle: 'legs', expRatio: 0.8}, {muscle: 'glutes', expRatio: 0.6}], description: '足幅を広めに開き、つま先を外側に向けて行うスクワット。内もも（内転筋）を強力に刺激します。' },
   { id: 'adduction', name: 'アダクション', primaryMuscle: 'adductors', targets: [{muscle: 'adductors', expRatio: 1.0}], description: '専用マシンに座り、両脚を外側から内側に閉じる動きで内転筋群を集中強化します。' },
@@ -200,7 +213,8 @@ const EXERCISES: ExerciseDef[] = [
   // ハムストリングス (Hamstrings)
   { id: 'leg_curl', name: 'レッグカール', primaryMuscle: 'hamstrings', targets: [{muscle: 'hamstrings', expRatio: 1.0}], description: 'マシンにうつ伏せになり、膝を曲げてかかとをお尻に近づけハムストリングスを鍛えます。' },
   { id: 'romanian_deadlift', name: 'ルーマニアンデッドリフト', primaryMuscle: 'hamstrings', targets: [{muscle: 'hamstrings', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.8}, {muscle: 'erector_spinae', expRatio: 0.6}], description: '膝を軽く曲げたまま、お尻を後ろに引きながら上体を倒し裏ももを伸ばします。' },
-  
+  { id: 'nordic_curl', name: 'ノルディックハムストリングカール', primaryMuscle: 'hamstrings', isBodyweight: true, targets: [{muscle: 'hamstrings', expRatio: 1.0}, {muscle: 'glutes', expRatio: 0.4}], description: '足首を固定して膝立ちになり、体をまっすぐ保ったままゆっくり前に倒れます。自重最強クラスの裏もも種目です。' },
+
   // 腹直筋 (Abs)
   { id: 'crunch', name: 'クランチ', primaryMuscle: 'abs', isBodyweight: true, targets: [{muscle: 'abs', expRatio: 1.0}], description: '仰向けになり、腰を床につけたままおへそを覗き込むように上体を丸めます。' },
   { id: 'ab_roller', name: '腹筋ローラー (アブローラー)', primaryMuscle: 'abs', isBodyweight: true, targets: [{muscle: 'abs', expRatio: 1.0}, {muscle: 'transversus_abdominis', expRatio: 0.8}, {muscle: 'back', expRatio: 0.4}], description: '膝をついてローラーを持ち、体を前に伸ばしてから元の位置に戻ります。' },
