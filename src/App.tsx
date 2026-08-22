@@ -1317,6 +1317,28 @@ function EquipmentBadge({ equipment, size = 'md' }: { equipment: EquipmentType; 
   );
 }
 
+// 種目の絞り込み用チップボタン（部位・器具フィルターで共用）。
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '0.3rem 0.7rem',
+        fontSize: '0.8rem',
+        background: active ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.4)',
+        color: active ? 'var(--btn-hover-text)' : 'var(--text-primary)',
+        border: `1px solid ${active ? '#39ff14' : 'var(--border-color)'}`,
+        borderRadius: '999px',
+        textTransform: 'none',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function ResultRow({ detail }: { detail: RecordResultDetail }) {
   const [currentExp, setCurrentExp] = useState(detail.oldExp);
   const [currentLevel, setCurrentLevel] = useState(detail.oldLevel);
@@ -2751,6 +2773,9 @@ function App() {
   const [contestKey, setContestKey] = useState<number>(0); // 大会のたびに ContestView を作り直すための key
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
+  // 記録タブの種目絞り込み。部位（MUSCLE_GROUPS.id）と器具（EquipmentType）で絞る。
+  const [filterGroup, setFilterGroup] = useState<string>('all');
+  const [filterEquipment, setFilterEquipment] = useState<EquipmentType | 'all'>('all');
   const [weight, setWeight] = useState<number | ''>('');
   const [reps, setReps] = useState<number | ''>('');
   const [sets, setSets] = useState<number | ''>('');
@@ -3020,6 +3045,25 @@ function App() {
 
   const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
   const isBodyweight = selectedExercise?.isBodyweight || false;
+
+  // 現在のフィルター条件に一致する種目一覧
+  const matchesExerciseFilter = (ex: ExerciseDef, group: string, equip: EquipmentType | 'all') => {
+    const groupOk = group === 'all' || (MUSCLE_GROUPS.find(g => g.id === group)?.muscles.includes(ex.primaryMuscle) ?? false);
+    const equipOk = equip === 'all' || ex.equipment === equip;
+    return groupOk && equipOk;
+  };
+  const filteredExercises = EXERCISES.filter(ex => matchesExerciseFilter(ex, filterGroup, filterEquipment));
+
+  // フィルターを変更する。選択中の種目が新しい条件から外れた場合は先頭の該当種目に切り替える
+  // （明示的に選んだ種目〈おすすめ・詳細からの遷移〉を上書きしないよう、変更時のみ整合を取る）。
+  const applyExerciseFilter = (nextGroup: string, nextEquip: EquipmentType | 'all') => {
+    setFilterGroup(nextGroup);
+    setFilterEquipment(nextEquip);
+    const matches = EXERCISES.filter(ex => matchesExerciseFilter(ex, nextGroup, nextEquip));
+    if (matches.length > 0 && !matches.some(ex => ex.id === selectedExerciseId)) {
+      setSelectedExerciseId(matches[0].id);
+    }
+  };
 
   const handleRecord = (e: React.FormEvent) => {
     e.preventDefault();
@@ -4632,26 +4676,54 @@ function App() {
                 </div>
               )}
 
-              <label style={{ fontSize: '1.1rem', color: 'var(--text-accent)' }}>🏋️ トレーニング種目</label>
-              <select 
-                value={selectedExerciseId} 
-                onChange={e => setSelectedExerciseId(e.target.value)}
-                style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
-              >
-                {MUSCLE_GROUPS.map(group => {
-                  const groupExercises = EXERCISES.filter(ex => group.muscles.includes(ex.primaryMuscle));
-                  if (groupExercises.length === 0) return null;
-                  return (
-                    <optgroup key={group.id} label={group.title}>
-                      {groupExercises.map(ex => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.name}（{EQUIPMENT_INFO[ex.equipment].label}）
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
+              {/* 種目の絞り込み：部位・器具でフィルターする */}
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.8rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🔍 部位で絞り込み</div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <FilterChip label="すべて" active={filterGroup === 'all'} onClick={() => applyExerciseFilter('all', filterEquipment)} />
+                    {MUSCLE_GROUPS.map(group => (
+                      <FilterChip key={group.id} label={group.title} active={filterGroup === group.id} onClick={() => applyExerciseFilter(group.id, filterEquipment)} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🏋️ 器具で絞り込み</div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <FilterChip label="すべて" active={filterEquipment === 'all'} onClick={() => applyExerciseFilter(filterGroup, 'all')} />
+                    {(Object.keys(EQUIPMENT_INFO) as EquipmentType[]).map(eq => (
+                      <FilterChip key={eq} label={`${EQUIPMENT_INFO[eq].emoji} ${EQUIPMENT_INFO[eq].label}`} active={filterEquipment === eq} onClick={() => applyExerciseFilter(filterGroup, eq)} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <label style={{ fontSize: '1.1rem', color: 'var(--text-accent)' }}>🏋️ トレーニング種目（{filteredExercises.length}種目）</label>
+              {filteredExercises.length === 0 ? (
+                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', fontSize: '0.9rem' }}>
+                  条件に合う種目がありません。フィルターを変えてみてください。
+                </div>
+              ) : (
+                <select
+                  value={selectedExerciseId}
+                  onChange={e => setSelectedExerciseId(e.target.value)}
+                  style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
+                >
+                  {MUSCLE_GROUPS.map(group => {
+                    const groupExercises = filteredExercises.filter(ex => group.muscles.includes(ex.primaryMuscle));
+                    if (groupExercises.length === 0) return null;
+                    return (
+                      <optgroup key={group.id} label={group.title}>
+                        {groupExercises.map(ex => (
+                          <option key={ex.id} value={ex.id}>
+                            {ex.name}（{EQUIPMENT_INFO[ex.equipment].label}）
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              )}
 
               {selectedExercise && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.5rem' }}>
@@ -5388,6 +5460,9 @@ function App() {
 
               const goToRecord = (exerciseId: string) => {
                 setSelectedExerciseId(exerciseId);
+                // フィルターが有効だと遷移先の種目が絞り込みから外れて上書きされうるため解除する
+                setFilterGroup('all');
+                setFilterEquipment('all');
                 setShowTrainingPicker(false);
                 setEditingNickname(false);
                 setSelectedMuscleInfo(null);
