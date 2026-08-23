@@ -3545,11 +3545,14 @@ function App() {
 
   const recommendedExercises = useMemo(() => {
     const safeExercises = EXERCISES.filter(ex => {
+      // 現在の部位・器具フィルターにも従う
+      if (!matchesExerciseFilter(ex, filterGroup, filterEquipment)) return false;
       return ex.targets.every(target => !checkIsRecovering(target.muscle, stats));
     });
-    // Shuffle safely inside useMemo so it only changes when stats change
+    // Shuffle safely inside useMemo so it only changes when stats/filter change
     return safeExercises.sort(() => 0.5 - Math.random()).slice(0, 3);
-  }, [stats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats, filterGroup, filterEquipment]);
 
   // 履歴タブのダッシュボード用の集計データ
   const analytics = useMemo(() => {
@@ -4647,37 +4650,8 @@ function App() {
           <form onSubmit={handleRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-              {recommendedExercises.length > 0 && (
-                <div style={{ background: 'rgba(57, 255, 20, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid #39ff14', marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.9rem', color: '#39ff14', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span>✨</span> おすすめトレーニング
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {recommendedExercises.map(ex => (
-                      <button
-                        key={ex.id}
-                        type="button"
-                        onClick={() => setSelectedExerciseId(ex.id)}
-                        style={{ 
-                          padding: '0.4rem 0.8rem', 
-                          fontSize: '0.85rem', 
-                          background: selectedExerciseId === ex.id ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.5)',
-                          color: selectedExerciseId === ex.id ? 'var(--btn-hover-text)' : 'var(--text-primary)',
-                          border: `1px solid ${selectedExerciseId === ex.id ? '#39ff14' : 'var(--border-color)'}`,
-                          textTransform: 'none',
-                          display: 'inline-flex', alignItems: 'center', gap: '6px'
-                        }}
-                      >
-                        <span>{ex.name}</span>
-                        <EquipmentBadge equipment={ex.equipment} size="sm" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 種目の絞り込み：部位・器具でフィルターする */}
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.8rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {/* 種目の絞り込み：部位・器具でフィルターする（おすすめ・種目一覧の両方に効く） */}
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.8rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.5rem' }}>
                 <div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🔍 部位で絞り込み</div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -4697,6 +4671,35 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {recommendedExercises.length > 0 && (
+                <div style={{ background: 'rgba(57, 255, 20, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid #39ff14', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#39ff14', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>✨</span> おすすめトレーニング
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {recommendedExercises.map(ex => (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => setSelectedExerciseId(ex.id)}
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          fontSize: '0.85rem',
+                          background: selectedExerciseId === ex.id ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.5)',
+                          color: selectedExerciseId === ex.id ? 'var(--btn-hover-text)' : 'var(--text-primary)',
+                          border: `1px solid ${selectedExerciseId === ex.id ? '#39ff14' : 'var(--border-color)'}`,
+                          textTransform: 'none',
+                          display: 'inline-flex', alignItems: 'center', gap: '6px'
+                        }}
+                      >
+                        <span>{ex.name}</span>
+                        <EquipmentBadge equipment={ex.equipment} size="sm" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <label style={{ fontSize: '1.1rem', color: 'var(--text-accent)' }}>🏋️ トレーニング種目（{filteredExercises.length}種目）</label>
               {filteredExercises.length === 0 ? (
