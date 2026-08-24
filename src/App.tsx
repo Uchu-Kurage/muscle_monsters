@@ -244,8 +244,8 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'leg_raise', name: 'レッグレイズ', primaryMuscle: 'iliopsoas', isBodyweight: true, equipment: 'none', targets: [{muscle: 'iliopsoas', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.8}], description: '仰向けで足を揃え、床から垂直になるまで下腹部の力で持ち上げます。' },
 
   // 腹横筋 (Transversus Abdominis)
-  { id: 'draw_in', name: 'ドローイン (自重設定)', primaryMuscle: 'transversus_abdominis', isBodyweight: true, equipment: 'none', targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}], description: 'お腹を極限までへこませ、その状態をキープしてインナーマッスルを鍛えます。' },
-  { id: 'plank', name: 'プランク (自重設定)', primaryMuscle: 'transversus_abdominis', isBodyweight: true, equipment: 'none', targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.5}, {muscle: 'shoulder', expRatio: 0.2}, {muscle: 'triceps', expRatio: 0.2}], description: '肘とつま先で体を支え、体が一直線になる姿勢をキープします。' },
+  { id: 'draw_in', name: 'ドローイン', primaryMuscle: 'transversus_abdominis', isBodyweight: true, equipment: 'none', targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}], description: 'お腹を極限までへこませ、その状態をキープしてインナーマッスルを鍛えます。' },
+  { id: 'plank', name: 'プランク', primaryMuscle: 'transversus_abdominis', isBodyweight: true, equipment: 'none', targets: [{muscle: 'transversus_abdominis', expRatio: 1.0}, {muscle: 'abs', expRatio: 0.5}, {muscle: 'shoulder', expRatio: 0.2}, {muscle: 'triceps', expRatio: 0.2}], description: '肘とつま先で体を支え、体が一直線になる姿勢をキープします。' },
 ];
 
 const INITIAL_STATE: AppState = {
