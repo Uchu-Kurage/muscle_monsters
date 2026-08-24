@@ -4719,7 +4719,7 @@ function App() {
                       <optgroup key={group.id} label={group.title}>
                         {groupExercises.map(ex => (
                           <option key={ex.id} value={ex.id}>
-                            {ex.name}（{EQUIPMENT_INFO[ex.equipment].label}）
+                            {EQUIPMENT_INFO[ex.equipment].emoji} {ex.name}
                           </option>
                         ))}
                       </optgroup>
