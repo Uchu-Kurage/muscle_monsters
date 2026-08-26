@@ -2773,8 +2773,9 @@ function App() {
   const [contestKey, setContestKey] = useState<number>(0); // 大会のたびに ContestView を作り直すための key
 
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
-  // 記録タブの種目絞り込み。部位（MUSCLE_GROUPS.id）と器具（EquipmentType）で絞る。
+  // 記録タブの種目絞り込み。部位グループ（MUSCLE_GROUPS.id）・鍛える部位（MuscleType）・器具（EquipmentType）で絞る。
   const [filterGroup, setFilterGroup] = useState<string>('all');
+  const [filterMuscle, setFilterMuscle] = useState<MuscleType | 'all'>('all');
   const [filterEquipment, setFilterEquipment] = useState<EquipmentType | 'all'>('all');
   const [weight, setWeight] = useState<number | ''>('');
   const [reps, setReps] = useState<number | ''>('');
@@ -3046,20 +3047,22 @@ function App() {
   const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId);
   const isBodyweight = selectedExercise?.isBodyweight || false;
 
-  // 現在のフィルター条件に一致する種目一覧
-  const matchesExerciseFilter = (ex: ExerciseDef, group: string, equip: EquipmentType | 'all') => {
+  // 現在のフィルター条件に一致する種目一覧。鍛える部位（muscle）はその種目でEXPが入る部位（targets）で判定する。
+  const matchesExerciseFilter = (ex: ExerciseDef, group: string, muscle: MuscleType | 'all', equip: EquipmentType | 'all') => {
     const groupOk = group === 'all' || (MUSCLE_GROUPS.find(g => g.id === group)?.muscles.includes(ex.primaryMuscle) ?? false);
+    const muscleOk = muscle === 'all' || ex.targets.some(t => t.muscle === muscle);
     const equipOk = equip === 'all' || ex.equipment === equip;
-    return groupOk && equipOk;
+    return groupOk && muscleOk && equipOk;
   };
-  const filteredExercises = EXERCISES.filter(ex => matchesExerciseFilter(ex, filterGroup, filterEquipment));
+  const filteredExercises = EXERCISES.filter(ex => matchesExerciseFilter(ex, filterGroup, filterMuscle, filterEquipment));
 
   // フィルターを変更する。選択中の種目が新しい条件から外れた場合は先頭の該当種目に切り替える
   // （明示的に選んだ種目〈おすすめ・詳細からの遷移〉を上書きしないよう、変更時のみ整合を取る）。
-  const applyExerciseFilter = (nextGroup: string, nextEquip: EquipmentType | 'all') => {
+  const applyExerciseFilter = (nextGroup: string, nextMuscle: MuscleType | 'all', nextEquip: EquipmentType | 'all') => {
     setFilterGroup(nextGroup);
+    setFilterMuscle(nextMuscle);
     setFilterEquipment(nextEquip);
-    const matches = EXERCISES.filter(ex => matchesExerciseFilter(ex, nextGroup, nextEquip));
+    const matches = EXERCISES.filter(ex => matchesExerciseFilter(ex, nextGroup, nextMuscle, nextEquip));
     if (matches.length > 0 && !matches.some(ex => ex.id === selectedExerciseId)) {
       setSelectedExerciseId(matches[0].id);
     }
@@ -3545,14 +3548,14 @@ function App() {
 
   const recommendedExercises = useMemo(() => {
     const safeExercises = EXERCISES.filter(ex => {
-      // 現在の部位・器具フィルターにも従う
-      if (!matchesExerciseFilter(ex, filterGroup, filterEquipment)) return false;
+      // 現在の部位・鍛える部位・器具フィルターにも従う
+      if (!matchesExerciseFilter(ex, filterGroup, filterMuscle, filterEquipment)) return false;
       return ex.targets.every(target => !checkIsRecovering(target.muscle, stats));
     });
     // Shuffle safely inside useMemo so it only changes when stats/filter change
     return safeExercises.sort(() => 0.5 - Math.random()).slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats, filterGroup, filterEquipment]);
+  }, [stats, filterGroup, filterMuscle, filterEquipment]);
 
   // 履歴タブのダッシュボード用の集計データ
   const analytics = useMemo(() => {
@@ -4655,18 +4658,28 @@ function App() {
                 <div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🔍 部位で絞り込み</div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <FilterChip label="すべて" active={filterGroup === 'all'} onClick={() => applyExerciseFilter('all', filterEquipment)} />
+                    {/* グループを変えたら、鍛える部位フィルターは一旦「すべて」に戻す */}
+                    <FilterChip label="すべて" active={filterGroup === 'all'} onClick={() => applyExerciseFilter('all', 'all', filterEquipment)} />
                     {MUSCLE_GROUPS.map(group => (
-                      <FilterChip key={group.id} label={group.title} active={filterGroup === group.id} onClick={() => applyExerciseFilter(group.id, filterEquipment)} />
+                      <FilterChip key={group.id} label={group.title} active={filterGroup === group.id} onClick={() => applyExerciseFilter(group.id, 'all', filterEquipment)} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🧍 鍛える部位（キャラ）で絞り込み</div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <FilterChip label="すべて" active={filterMuscle === 'all'} onClick={() => applyExerciseFilter(filterGroup, 'all', filterEquipment)} />
+                    {(filterGroup === 'all' ? MUSCLE_GROUPS.flatMap(g => g.muscles) : (MUSCLE_GROUPS.find(g => g.id === filterGroup)?.muscles ?? [])).map(m => (
+                      <FilterChip key={m} label={MUSCLE_NAMES[m]} active={filterMuscle === m} onClick={() => applyExerciseFilter(filterGroup, m, filterEquipment)} />
                     ))}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>🏋️ 器具で絞り込み</div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <FilterChip label="すべて" active={filterEquipment === 'all'} onClick={() => applyExerciseFilter(filterGroup, 'all')} />
+                    <FilterChip label="すべて" active={filterEquipment === 'all'} onClick={() => applyExerciseFilter(filterGroup, filterMuscle, 'all')} />
                     {(Object.keys(EQUIPMENT_INFO) as EquipmentType[]).map(eq => (
-                      <FilterChip key={eq} label={`${EQUIPMENT_INFO[eq].emoji} ${EQUIPMENT_INFO[eq].label}`} active={filterEquipment === eq} onClick={() => applyExerciseFilter(filterGroup, eq)} />
+                      <FilterChip key={eq} label={`${EQUIPMENT_INFO[eq].emoji} ${EQUIPMENT_INFO[eq].label}`} active={filterEquipment === eq} onClick={() => applyExerciseFilter(filterGroup, filterMuscle, eq)} />
                     ))}
                   </div>
                 </div>
@@ -5465,6 +5478,7 @@ function App() {
                 setSelectedExerciseId(exerciseId);
                 // フィルターが有効だと遷移先の種目が絞り込みから外れて上書きされうるため解除する
                 setFilterGroup('all');
+                setFilterMuscle('all');
                 setFilterEquipment('all');
                 setShowTrainingPicker(false);
                 setEditingNickname(false);
