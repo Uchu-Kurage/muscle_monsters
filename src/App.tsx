@@ -182,7 +182,6 @@ const EXERCISES: ExerciseDef[] = [
   // 上腕二頭筋 (Biceps)
   { id: 'biceps_curl', name: 'アームカール', primaryMuscle: 'biceps', equipment: 'dumbbell', targets: [{muscle: 'biceps', expRatio: 1.0}, {muscle: 'brachioradialis', expRatio: 0.3}], description: '肘を固定し、バーベルやダンベルを巻き上げるように持ち上げ上腕二頭筋を鍛えます。' },
   { id: 'incline_curl', name: 'インクラインダンベルカール', primaryMuscle: 'biceps', equipment: 'dumbbell', targets: [{muscle: 'biceps', expRatio: 1.0}], description: 'ベンチの背もたれに斜めに寄りかかり、上腕二頭筋を最大伸展させて鍛えます。' },
-  { id: 'hammer_curl', name: 'ハンマーカール', primaryMuscle: 'biceps', equipment: 'dumbbell', targets: [{muscle: 'biceps', expRatio: 0.7}, {muscle: 'brachioradialis', expRatio: 1.0}], description: '手のひらを内側（縦）に向けたままダンベルを持ち上げ、腕橈骨筋と二頭筋を同時に鍛えます。' },
   { id: 'chin_up', name: '逆手懸垂（チンアップ）', primaryMuscle: 'biceps', isBodyweight: true, equipment: 'bar', targets: [{muscle: 'biceps', expRatio: 1.0}, {muscle: 'back', expRatio: 0.8}, {muscle: 'rhomboids', expRatio: 0.3}], description: '手のひらを自分に向けてバーを握り、体を引き上げます。順手より上腕二頭筋に強く効く自重種目です。' },
 
   // 上腕三頭筋 (Triceps)
@@ -194,6 +193,7 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'diamond_push_up', name: 'ダイヤモンドプッシュアップ', primaryMuscle: 'triceps', isBodyweight: true, equipment: 'none', targets: [{muscle: 'triceps', expRatio: 1.0}, {muscle: 'chest', expRatio: 0.6}, {muscle: 'shoulder', expRatio: 0.2}], description: '両手の親指と人差し指でひし形を作って行う腕立て伏せ。上腕三頭筋を集中的に鍛えます。' },
 
   // 腕橈骨筋 (Brachioradialis)
+  { id: 'hammer_curl', name: 'ハンマーカール', primaryMuscle: 'brachioradialis', equipment: 'dumbbell', targets: [{muscle: 'brachioradialis', expRatio: 1.0}, {muscle: 'biceps', expRatio: 0.7}], description: '手のひらを内側（縦）に向けたままダンベルを持ち上げ、腕橈骨筋と二頭筋を同時に鍛えます。' },
   { id: 'reverse_curl', name: 'リバースカール', primaryMuscle: 'brachioradialis', equipment: 'barbell', targets: [{muscle: 'brachioradialis', expRatio: 1.0}, {muscle: 'forearm_flexors', expRatio: 0.4}], description: '手のひらを下に向けてバーベルを持ち上げ、前腕上部を集中して鍛えます。' },
 
   // 前腕屈筋群 (Forearm Flexors)
