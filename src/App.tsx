@@ -1250,6 +1250,43 @@ function computeBranch(
   return 'balanced';
 }
 
+// 型変化の判定に使う直近セット数。第3形態はこの直近セットの傾向で型が変わりうる。
+const BRANCH_RECENT_SET_WINDOW = 24;
+
+// 直近のトレーニング傾向（直近 BRANCH_RECENT_SET_WINDOW セット）から型を判定する。
+// computeBranch が全履歴から「初回の型」を確定するのに対し、こちらは直近の偏りだけを見るため、
+// トレーニング内容（レップ数）を変え続けると、第3形態の型が途中で別のタイプに変化する。
+// logs は新しい順で渡す想定。extra は今回記録した（まだ logs に無い）最新セット。
+function computeRecentBranch(
+  muscle: MuscleType,
+  logs: TrainingLog[],
+  extra?: { reps: number; sets: number }
+): EvolutionBranch {
+  let repWeighted = 0;
+  let setSum = 0;
+  // 今回記録分を最も新しいセットとして最優先で反映する
+  if (extra && extra.sets > 0) {
+    const take = Math.min(extra.sets, BRANCH_RECENT_SET_WINDOW);
+    repWeighted += extra.reps * take;
+    setSum += take;
+  }
+  // 新しい順にウィンドウが埋まるまで集計する
+  for (const log of logs) {
+    if (setSum >= BRANCH_RECENT_SET_WINDOW) break;
+    const def = EXERCISE_BY_NAME[log.exerciseName];
+    if (def && def.targets.some(t => t.muscle === muscle)) {
+      const take = Math.min(log.sets, BRANCH_RECENT_SET_WINDOW - setSum);
+      repWeighted += log.reps * take;
+      setSum += take;
+    }
+  }
+  if (setSum === 0) return 'balanced';
+  const avgReps = repWeighted / setSum;
+  if (avgReps <= 7) return 'power';
+  if (avgReps >= 13) return 'endurance';
+  return 'balanced';
+}
+
 // 表示用: 第3形態なら保存済みの型を優先し、無ければ履歴から算出する（旧セーブ互換）。
 // 第3形態未満は分岐なし（undefined）。
 function resolveBranch(
@@ -2781,7 +2818,7 @@ function App() {
   const [reps, setReps] = useState<number | ''>('');
   const [sets, setSets] = useState<number | ''>('');
 
-  const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number, branch?: EvolutionBranch }[]>([]);
+  const [evolutionAlerts, setEvolutionAlerts] = useState<{ muscle: MuscleType, phase: number, branch?: EvolutionBranch, changed?: boolean }[]>([]);
   const [bestPumpAlert, setBestPumpAlert] = useState<MuscleType | null>(null);
   const [overworkAlerts, setOverworkAlerts] = useState<MuscleType[]>([]);
   const [detrainAlert, setDetrainAlert] = useState<string[]>([]);
@@ -3102,7 +3139,7 @@ function App() {
     }
 
     const details: RecordResultDetail[] = [];
-    const newEvolutions: { muscle: MuscleType, phase: number, branch?: EvolutionBranch }[] = [];
+    const newEvolutions: { muscle: MuscleType, phase: number, branch?: EvolutionBranch, changed?: boolean }[] = [];
     const newOverworkedMuscles: MuscleType[] = [];
 
     // レベルアップ・進化・実績判定はセット記録の副作用（details/newEvolutions 等）に依存するため、
@@ -3171,7 +3208,7 @@ function App() {
         }
 
         let evolutionPhase: number | undefined;
-        // 第3形態到達時に確定する分岐進化の型。既に確定済みなら維持する。
+        // 分岐進化の型。第3形態への初到達時に確定し、以降は直近の傾向で変化しうる。
         let branch: EvolutionBranch | undefined = current.evolutionBranch;
 
         if (didLevelUp) {
@@ -3180,11 +3217,25 @@ function App() {
 
           if (newPhase > oldPhase) {
             evolutionPhase = newPhase;
-            // 第3形態への進化のときだけ、トレーニング傾向から型を一度だけ確定
+            // 第3形態への進化のときだけ、それまでの全履歴傾向から初回の型を確定
             if (newPhase === 3 && !branch) {
               branch = computeBranch(muscle, trainingLogs, { reps: r, sets: s });
             }
             newEvolutions.push({ muscle, phase: newPhase, branch: newPhase === 3 ? branch : undefined });
+          }
+        }
+
+        // 既に第3形態（今回新たに到達した分は除く）なら、直近のトレーニング傾向で型が変化しうる。
+        // 高重量・低レップに寄せればパワー型へ、高レップに寄せれば持久型へ——と、
+        // Lv.10以上の姿がトレーニング内容によって途中で別のタイプに変わる。
+        if (evolutionPhase !== 3 && getEvolutionPhase(newLevel) === 3) {
+          const recentBranch = computeRecentBranch(muscle, trainingLogs, { reps: r, sets: s });
+          if (!branch) {
+            // 旧セーブなどで型が未確定な第3形態は、ここで直近傾向から確定させる（通知なし）
+            branch = recentBranch;
+          } else if (recentBranch !== branch) {
+            branch = recentBranch;
+            newEvolutions.push({ muscle, phase: 3, branch, changed: true });
           }
         }
 
@@ -4147,6 +4198,8 @@ function App() {
             <div style={{ padding: '0 1.2rem 1.1rem' }}>
               <p style={{ fontSize: '0.8rem', lineHeight: '1.5', color: 'var(--text-secondary)', margin: '0 0 0.8rem' }}>
                 第3形態（Lv.10）に到達すると、それまでのトレーニング傾向に応じて3つの「型」のいずれかに進化します。
+                さらに第3形態は、<span style={{ color: 'var(--text-accent)' }}>その後の直近のトレーニング内容</span>に応じて型が変化します。
+                低レップ・高重量に寄せればパワー型へ、高レップに寄せれば持久型へ——鍛え方を変えれば姿も変わります。
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {(Object.keys(BRANCH_INFO) as EvolutionBranch[]).map(b => {
@@ -5396,14 +5449,17 @@ function App() {
       {(!recordResult && !achievementAlert && evolutionAlerts.length > 0) && (() => {
         const alert = evolutionAlerts[0];
         const branchInfo = alert.phase === 3 && alert.branch ? BRANCH_INFO[alert.branch] : null;
+        const isChange = !!alert.changed; // 進化ではなく、既存の第3形態が別の型へ変化したケース
         return (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
             <h1 style={{ color: branchInfo ? branchInfo.color : '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>
-              {branchInfo ? '分岐進化！！' : '進化！！'}
+              {isChange ? '型が変化！！' : branchInfo ? '分岐進化！！' : '進化！！'}
             </h1>
             <p style={{ fontSize: '1.5rem', marginBottom: branchInfo ? '1rem' : '2rem' }}>
-              {branchInfo ? (
+              {isChange && branchInfo ? (
+                <>最近のトレーニングで<br/>{MUSCLE_NAMES[alert.muscle]} は<br/>{branchInfo.emoji} <span style={{ color: branchInfo.color, fontWeight: 'bold' }}>{branchInfo.label}</span> に変化した！</>
+              ) : branchInfo ? (
                 <>おめでとう！<br/>{MUSCLE_NAMES[alert.muscle]} は<br/>{branchInfo.emoji} <span style={{ color: branchInfo.color, fontWeight: 'bold' }}>{branchInfo.label}</span> に分岐進化した！</>
               ) : (
                 <>おめでとう！<br/>{MUSCLE_NAMES[alert.muscle]} は 第{alert.phase}形態 に進化した！</>
