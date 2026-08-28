@@ -2831,6 +2831,8 @@ function App() {
   const [selectedZukanPhase, setSelectedZukanPhase] = useState<1 | 2 | 3>(1);
   // 図鑑トップの「分岐進化タイプとは？」折りたたみパネルの開閉状態（全筋肉共通の解説なのでここに集約）
   const [showBranchGuide, setShowBranchGuide] = useState(false);
+  // 図鑑の表示モード：モンスター図鑑 / トレーニング図鑑 の切り替え
+  const [zukanView, setZukanView] = useState<'monster' | 'training'>('monster');
   const [recordSuccess, setRecordSuccess] = useState(false);
   const [recordResult, setRecordResult] = useState<{ details: RecordResultDetail[], isBestPump: boolean, streakCount: number, nextStreakMilestone: { days: number; title: string } | null } | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -4074,6 +4076,30 @@ function App() {
 
     return (
       <div className="glass-panel" style={{ marginTop: '0' }}>
+        {/* モンスター図鑑 / トレーニング図鑑 の切り替え */}
+        <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '3px', marginBottom: '1.2rem' }}>
+          {([['monster', '👾 モンスター'], ['training', '🏋️ トレーニング']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setZukanView(v)}
+              style={{
+                flex: 1,
+                padding: '7px 12px',
+                fontSize: '0.85rem',
+                minHeight: 'auto',
+                borderRadius: '8px',
+                background: zukanView === v ? 'var(--text-accent)' : 'transparent',
+                color: zukanView === v ? '#000' : 'var(--text-secondary)',
+                fontWeight: zukanView === v ? 'bold' : 'normal',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {zukanView === 'training' ? renderTrainingZukan() : (
+        <>
         <h2 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>📚 モンスター図鑑</h2>
         <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.2rem' }}>
           筋肉を育てて全ての進化形態をコンプリートしよう！
@@ -4225,7 +4251,151 @@ function App() {
             </div>
           </div>
         ))}
+        </>
+        )}
       </div>
+    );
+  };
+
+  // トレーニング図鑑：全種目を部位グループごとに一覧。対象の筋肉モンスターと
+  // 1セットあたりの獲得EXP（基本値）を掲載する。記録済みの種目は「挑戦済み」として
+  // 詳細（説明文・対象キャラ・EXP）が解放され、未記録の種目はシルエット表示になる。
+  const renderTrainingZukan = () => {
+    // 記録済みの種目名と、その総セット数（挑戦回数の目安）を集計する
+    const doneSets: Record<string, number> = {};
+    trainingLogs.forEach(l => { doneSets[l.exerciseName] = (doneSets[l.exerciseName] ?? 0) + l.sets; });
+    const discoveredCount = EXERCISES.filter(ex => doneSets[ex.name] !== undefined).length;
+    const totalCount = EXERCISES.length;
+    const pct = Math.round((discoveredCount / totalCount) * 100);
+    const allDone = discoveredCount === totalCount;
+
+    return (
+      <>
+        <h2 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>🏋️ トレーニング図鑑</h2>
+        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.2rem' }}>
+          種目を記録して図鑑を埋めよう！対象キャラと獲得EXPをチェック！
+        </p>
+
+        {/* 挑戦達成度 */}
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>種目コンプリート</span>
+            <span style={{ fontWeight: 'bold', color: allDone ? '#ffea00' : '#00ffff', textShadow: allDone ? '0 0 10px rgba(255,234,0,0.6)' : 'none' }}>
+              <span style={{ fontSize: '1.5rem' }}>{discoveredCount}</span>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}> / {totalCount} 種</span>
+            </span>
+          </div>
+          <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{
+              width: `${pct}%`, height: '100%', borderRadius: '6px',
+              background: allDone ? 'linear-gradient(90deg, #ffea00, #ff8c00)' : 'linear-gradient(90deg, #00ffff, #ff00ff)',
+              transition: 'width 0.6s ease-out',
+              boxShadow: allDone ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+            }} />
+          </div>
+          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: allDone ? '#ffea00' : 'var(--text-secondary)', fontWeight: allDone ? 'bold' : 'normal' }}>
+            {allDone ? '🎉 全種目制覇！君はトレーニングマスターだ！' : `挑戦率 ${pct}%`}
+          </p>
+        </div>
+
+        {/* EXPの見方の凡例 */}
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.2rem', textAlign: 'center' }}>
+          獲得EXPは<b style={{ color: 'var(--text-accent)' }}>1セットあたりの基本値</b>です。PUMP!・調子・プロテインなどのボーナスでさらに増加します。
+        </p>
+
+        {/* 部位グループごとの種目リスト */}
+        {MUSCLE_GROUPS.map(group => {
+          const groupExercises = EXERCISES.filter(ex => group.muscles.includes(ex.primaryMuscle));
+          if (groupExercises.length === 0) return null;
+          return (
+            <div key={group.id} style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.4rem' }}>
+                {group.title}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                {groupExercises.map(ex => {
+                  const discovered = doneSets[ex.name] !== undefined;
+                  return (
+                    <div key={ex.id} className="glass-panel" style={{ padding: '0.8rem', opacity: discovered ? 1 : 0.75 }}>
+                      {/* 種目名・器具・挑戦状況 */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: discovered ? '0.6rem' : 0, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: discovered ? 'var(--text-accent)' : 'var(--text-secondary)' }}>
+                            {discovered ? ex.name : '？？？'}
+                          </span>
+                          <EquipmentBadge equipment={ex.equipment} size="sm" />
+                          {ex.isBodyweight && (
+                            <span style={{ fontSize: '0.6rem', color: '#39ff14', border: '1px solid #39ff14', borderRadius: '999px', padding: '1px 6px' }}>自重</span>
+                          )}
+                        </div>
+                        {discovered ? (
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            挑戦済み ✓（累計{doneSets[ex.name]}セット）
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>🔒 未挑戦</span>
+                        )}
+                      </div>
+
+                      {discovered ? (
+                        <>
+                          {ex.description && (
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 0.6rem' }}>
+                              {ex.description}
+                            </p>
+                          )}
+                          {/* 対象キャラと獲得EXP */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {ex.targets.map(t => {
+                              const expPerSet = Math.max(1, Math.floor(30 * t.expRatio));
+                              const isPrimary = t.muscle === ex.primaryMuscle;
+                              return (
+                                <div
+                                  key={t.muscle}
+                                  onClick={() => openZukan(t.muscle, 1)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    border: isPrimary ? '1px solid var(--border-highlight)' : '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: '10px', padding: '0.35rem 0.6rem 0.35rem 0.35rem', cursor: 'pointer',
+                                  }}
+                                >
+                                  <img
+                                    src={getSpriteSrc(t.muscle, 1)}
+                                    onError={e => handleSpriteError(e, t.muscle)}
+                                    alt={MUSCLE_NAMES[t.muscle]}
+                                    style={{ width: '30px', height: '30px', objectFit: 'contain' }}
+                                  />
+                                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                                      {MUSCLE_NICKNAME_SAMPLES[t.muscle]}
+                                      {isPrimary && <span style={{ fontSize: '0.55rem', color: 'var(--text-accent)', marginLeft: '3px' }}>主役</span>}
+                                    </span>
+                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>
+                                      {MUSCLE_NAMES[t.muscle]}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#ffea00', whiteSpace: 'nowrap' }}>
+                                    +{expPerSet}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
+                          この種目を記録すると、対象キャラと獲得EXPが解放されます。
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </>
     );
   };
 
