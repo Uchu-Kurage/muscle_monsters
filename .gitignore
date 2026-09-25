@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# スキルの検索スクリプト実行で生成されるPythonキャッシュ
+__pycache__/
+*.pyc
