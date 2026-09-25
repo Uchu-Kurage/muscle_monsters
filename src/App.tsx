@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import './index.css';
@@ -1367,13 +1368,86 @@ function EquipmentBadge({ equipment, size = 'md' }: { equipment: EquipmentType; 
 }
 
 // 種目の絞り込み用チップボタン（部位・器具フィルターで共用）。
+// モーダルの土台。ダイアログとして読み上げられるようにし、開いたらダイアログへフォーカスを移す。
+// Esc で閉じ、Tab はダイアログ内で循環させ、閉じたら開く前の要素へフォーカスを戻す。
+// onClose を渡さないモーダル（初回のプレイヤー登録など）は Esc でも背景タップでも閉じない。
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+function ModalOverlay({ label, zIndex, onClose, closeOnBackdrop = false, children }: {
+  label: string;
+  zIndex?: number;
+  onClose?: () => void;
+  closeOnBackdrop?: boolean;
+  children: ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => previouslyFocused?.focus?.({ preventScroll: true });
+  }, []);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && onClose) {
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    const focusables = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    if (focusables.length === 0) { e.preventDefault(); return; }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <div
+      ref={dialogRef}
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      style={zIndex !== undefined ? { zIndex } : undefined}
+      onKeyDown={handleKeyDown}
+      onClick={e => { if (closeOnBackdrop && onClose && e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// div などボタン以外の要素をクリック可能にする場合に、キーボード（Enter / Space）でも押せるようにする属性一式
+function pressableProps(onPress: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onPress();
+      }
+    },
+  };
+}
+
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       style={{
-        padding: '0.3rem 0.7rem',
+        minHeight: '36px',
+        padding: '0.3rem 0.8rem',
         fontSize: '0.8rem',
         background: active ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.4)',
         color: active ? 'var(--btn-hover-text)' : 'var(--text-primary)',
@@ -2480,12 +2554,12 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
         {/* 計算式 */}
         <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>🧮 得点の計算式</div>
-          <div style={{ fontSize: '0.7rem', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+          <div style={{ fontSize: '0.72rem', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
             総合スコア＝<b style={{ color: 'var(--text-primary)' }}>Σ(各ポーズ得点)</b>×<b style={{ color: balance.color }}>全身バランス</b><br />
             ポーズ得点＝<b style={{ color: '#6ea8ff' }}>筋量</b>(Σ レベル×重み)×<b style={{ color: '#4ade80' }}>仕上がり</b>(調子・鍛えどき)×<b style={{ color: '#ffd24a' }}>キメ</b>(タイミング)
           </div>
           {/* ポーズ別の内訳（タップで部位ごとの計算内訳を開閉） */}
-          <div style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>各ポーズをタップすると部位ごとの内訳が開きます。</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>各ポーズをタップすると部位ごとの内訳が開きます。</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {detail.poseBreakdowns.map(b => {
               const open = openPoseId === b.pose.id;
@@ -2494,6 +2568,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                   {/* ポーズのサマリー行 */}
                   <div
                     onClick={() => setOpenPoseId(open ? null : b.pose.id)}
+                    {...pressableProps(() => setOpenPoseId(open ? null : b.pose.id))}
+                    aria-expanded={open}
                     style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}
                   >
                     <span style={{ fontSize: '0.76rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2504,7 +2580,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                       <span style={{ color: 'var(--text-secondary)', marginLeft: '0.3rem' }}>pt {open ? '▲' : '▼'}</span>
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
                     <span style={{ color: '#6ea8ff' }}>筋量 {fmt(b.levelSum)}</span> ×{' '}
                     <span style={{ color: '#4ade80' }}>仕上 ×{b.finishFactor.toFixed(2)}</span> ×{' '}
                     <span style={{ color: '#ffd24a' }}>キメ ×{b.timingMult.toFixed(2)}</span> ＝ {b.score}
@@ -2513,7 +2589,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                   {/* 部位ごとの内訳 */}
                   {open && (
                     <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '0.2rem 0.5rem', fontSize: '0.66rem', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '0.2rem 0.5rem', fontSize: '0.72rem', alignItems: 'center' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>部位</span>
                         <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>Lv</span>
                         <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>重み</span>
@@ -2533,7 +2609,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                           </Fragment>
                         ))}
                       </div>
-                      <div style={{ marginTop: '0.45rem', fontSize: '0.66rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      <div style={{ marginTop: '0.45rem', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                         筋量合計 <b style={{ color: '#6ea8ff' }}>{fmt(b.levelSum)}</b>（＝各部位の Lv×重み の合計）<br />
                         仕上がり <b style={{ color: '#4ade80' }}>×{b.finishFactor.toFixed(2)}</b>（各部位の仕上がりを重みで加重平均）<br />
                         キメ <b style={{ color: '#ffd24a' }}>×{b.timingMult.toFixed(2)}</b> → 得点 <b style={{ color: 'var(--text-accent)' }}>{b.score}</b>
@@ -2552,7 +2628,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
         {/* 部位ごとの影響 */}
         <div className="contest-scoreboard" style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.2rem' }}>💪 部位ごとの影響</div>
-          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
             筋量貢献＝レベル×審査重み。バーが長い部位ほど今回の得点を支えている。
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -2583,7 +2659,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
 
           <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
             <div style={{ color: '#6ea8ff', fontWeight: 'bold', marginBottom: '0.25rem' }}>📈 育てると効く部位</div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>今回の条件で +1レベルあたりの得点効率が高い順。</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', marginBottom: '0.3rem' }}>今回の条件で +1レベルあたりの得点効率が高い順。</div>
             {detail.growPicks.map(mi => (
               <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
                 <span>{mi.name}<span style={{ color: 'var(--text-secondary)' }}> Lv{mi.level}</span></span>
@@ -2595,7 +2671,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           {detail.conditionPicks.length > 0 && (
             <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
               <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '0.25rem' }}>🔥 調子を上げると伸びる部位</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>好調に届いていない主力部位。トレ後の休養と適時トレで仕上がりが伸びる。</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', marginBottom: '0.3rem' }}>好調に届いていない主力部位。トレ後の休養と適時トレで仕上がりが伸びる。</div>
               {detail.conditionPicks.map(mi => (
                 <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
                   <span>{mi.name}</span>
@@ -2607,7 +2683,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
 
           <div style={{ fontSize: '0.72rem' }}>
             <div style={{ color: '#ffd24a', fontWeight: 'bold', marginBottom: '0.25rem' }}>⚖️ バランスの弱点</div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem' }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
               最も手薄なのは <b style={{ color: 'var(--text-primary)' }}>{groupLabel(detail.weakGroupTitle)}</b>。ここを底上げすると全身バランス係数が上がり、全ポーズの得点が底上げされる。
             </div>
           </div>
@@ -2661,8 +2737,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           return (
             <div key={d.muscle} style={{ textAlign: 'center', width: '54px' }}>
               <img src={getSpriteSrc(d.muscle, phaseN)} onError={e => handleSpriteError(e, d.muscle)} alt={MUSCLE_NAMES[d.muscle]} style={{ width: '38px', height: '38px', imageRendering: 'pixelated' }} />
-              <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{MUSCLE_NAMES[d.muscle]}</div>
-              <div style={{ fontSize: '0.62rem' }}>Lv{lv}{superComp ? ' ⚡' : ''}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{MUSCLE_NAMES[d.muscle]}</div>
+              <div style={{ fontSize: '0.72rem' }}>Lv{lv}{superComp ? ' ⚡' : ''}</div>
             </div>
           );
         })}
@@ -2671,7 +2747,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
       {/* キメゲージ */}
       <div style={{ marginBottom: '1rem' }}>
         {/* 難易度表示（大会の格で上がる） */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem', fontSize: '0.66rem', color: 'var(--text-secondary)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
           <span>キメ難易度 <span style={{ color: '#ffd24a' }}>{'★'.repeat(gaugeDiff.stars)}{'☆'.repeat(4 - gaugeDiff.stars)}</span></span>
           <span style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {gaugeFeatures.map((f, i) => (
@@ -2688,7 +2764,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
               <Fragment key={i}>
                 <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: claimed ? 'rgba(255,255,255,0.05)' : 'rgba(110,168,255,0.12)', transition: 'left 0.03s linear' }} />
                 <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: claimed ? 'rgba(150,150,150,0.35)' : 'rgba(74,222,128,0.4)', borderLeft: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(74,222,128,0.9)'}`, borderRight: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(74,222,128,0.9)'}`, transition: 'left 0.03s linear', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {claimed && <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>✓</span>}
+                  {claimed && <span style={{ fontSize: '0.72rem', lineHeight: 1 }}>✓</span>}
                 </div>
               </Fragment>
             );
@@ -2729,7 +2805,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           )}
           <div style={{ textAlign: 'center', marginBottom: '0.6rem' }}>
             <div style={{ color: lastPose.timing.color, fontWeight: 'bold' }}>{lastPose.timing.label}</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>+{lastPose.score}<span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}> pt</span></div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>+{lastPose.score}<span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}> pt</span></div>
           </div>
           <button onClick={nextPose} style={{ width: '100%', padding: '0.8rem' }}>
             {poseIndex + 1 >= poses.length ? '審査結果へ' : '次のポーズへ'}
@@ -3446,7 +3522,7 @@ function App() {
 
           {Array.from({ length: WEEKS }).map((_, weekIndex) => (
             <div style={{ display: 'contents' }} key={`week-${weekIndex}`}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'right', paddingRight: '4px' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'right', paddingRight: '4px' }}>
                 {weekLabels[weekIndex]}
               </div>
               
@@ -3846,7 +3922,7 @@ function App() {
       background: '#1f2636', borderRight: '1px solid rgba(255,255,255,0.12)',
     };
     const th: React.CSSProperties = {
-      padding: '5px 4px', fontSize: '0.7rem', color: 'var(--text-secondary)',
+      padding: '5px 4px', fontSize: '0.72rem', color: 'var(--text-secondary)',
       fontWeight: 'normal', textAlign: 'center', whiteSpace: 'nowrap',
     };
     const cellSize = 34;
@@ -3986,10 +4062,10 @@ function App() {
               textAlign: 'center',
             }}>
               <div style={{ fontSize: '1.1rem', lineHeight: 1 }}>{t.icon}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: '4px 0 2px' }}>{t.label}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '4px 0 2px' }}>{t.label}</div>
               <div style={{ fontWeight: 'bold', color: t.color, textShadow: `0 0 8px ${t.color}66` }}>
                 <span style={{ fontSize: '1.25rem' }}>{t.value}</span>
-                {t.unit && <span style={{ fontSize: '0.65rem', marginLeft: '2px' }}>{t.unit}</span>}
+                {t.unit && <span style={{ fontSize: '0.72rem', marginLeft: '2px' }}>{t.unit}</span>}
               </div>
             </div>
           ))}
@@ -4016,7 +4092,7 @@ function App() {
         {/* 部位バランス レーダーチャート */}
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.2rem' }}>
           {subHeading('🕸️', '部位バランス')}
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '-0.5rem 0 0.8rem' }}>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '-0.5rem 0 0.8rem' }}>
             まんべんなく鍛えて五角形を大きくしよう！
           </p>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -4100,7 +4176,7 @@ function App() {
                       }}
                     />
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: isFav ? '#ffd24a' : 'var(--text-secondary)', marginTop: '4px', fontWeight: isFav ? 'bold' : 'normal' }}>
+                  <div style={{ fontSize: '0.72rem', color: isFav ? '#ffd24a' : 'var(--text-secondary)', marginTop: '4px', fontWeight: isFav ? 'bold' : 'normal' }}>
                     {WEEKDAY_LABELS[i]}
                   </div>
                 </div>
@@ -4254,9 +4330,9 @@ function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>{MUSCLE_NAMES[muscle]}</span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--border-highlight)' }}>Lv.{level}</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--border-highlight)' }}>Lv.{level}</span>
                       </div>
-                      <span style={{ fontSize: '0.7rem', color: discoveredCount === 3 ? '#ffd24a' : 'var(--text-secondary)', fontWeight: discoveredCount === 3 ? 'bold' : 'normal' }}>
+                      <span style={{ fontSize: '0.72rem', color: discoveredCount === 3 ? '#ffd24a' : 'var(--text-secondary)', fontWeight: discoveredCount === 3 ? 'bold' : 'normal' }}>
                         {discoveredCount === 3 ? '★ ' : ''}{discoveredCount}/3
                       </span>
                     </div>
@@ -4276,6 +4352,7 @@ function App() {
                             )}
                             <div
                               onClick={e => { e.stopPropagation(); openZukan(muscle, phase); }}
+                              {...pressableProps(() => openZukan(muscle, phase))}
                               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0, cursor: 'pointer' }}
                             >
                               <div style={{ height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
@@ -4300,10 +4377,10 @@ function App() {
                                   </span>
                                 )}
                               </div>
-                              <span style={{ fontSize: '0.6rem', color: discovered ? 'var(--text-primary)' : 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '0.72rem', color: discovered ? 'var(--text-primary)' : 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap' }}>
                                 {info.label}
                               </span>
-                              <span style={{ fontSize: '0.55rem', color: branchInfo ? branchInfo.color : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '0.72rem', color: branchInfo ? branchInfo.color : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                 {discovered ? (branchInfo ? branchInfo.label : info.stage) : `Lv.${info.unlockLevel}で解放`}
                               </span>
                             </div>
@@ -4392,15 +4469,15 @@ function App() {
                           </span>
                           <EquipmentBadge equipment={ex.equipment} size="sm" />
                           {ex.isBodyweight && (
-                            <span style={{ fontSize: '0.6rem', color: '#4ade80', border: '1px solid #4ade80', borderRadius: '999px', padding: '1px 6px' }}>自重</span>
+                            <span style={{ fontSize: '0.72rem', color: '#4ade80', border: '1px solid #4ade80', borderRadius: '999px', padding: '1px 6px' }}>自重</span>
                           )}
                         </div>
                         {discovered ? (
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                             挑戦済み ✓（累計{doneSets[ex.name]}セット）
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>🔒 未挑戦</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>🔒 未挑戦</span>
                         )}
                       </div>
 
@@ -4420,6 +4497,7 @@ function App() {
                                 <div
                                   key={t.muscle}
                                   onClick={() => openZukan(t.muscle, 1)}
+                                  {...pressableProps(() => openZukan(t.muscle, 1))}
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                                     background: 'rgba(0,0,0,0.3)',
@@ -4434,11 +4512,11 @@ function App() {
                                     style={{ width: '30px', height: '30px', objectFit: 'contain' }}
                                   />
                                   <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
                                       {MUSCLE_NICKNAME_SAMPLES[t.muscle]}
-                                      {isPrimary && <span style={{ fontSize: '0.55rem', color: 'var(--text-accent)', marginLeft: '3px' }}>主役</span>}
+                                      {isPrimary && <span style={{ fontSize: '0.72rem', color: 'var(--text-accent)', marginLeft: '3px' }}>主役</span>}
                                     </span>
-                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                       {MUSCLE_NAMES[t.muscle]}
                                     </span>
                                   </div>
@@ -4451,7 +4529,7 @@ function App() {
                           </div>
                         </>
                       ) : (
-                        <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
                           この種目を記録すると、対象キャラと獲得EXPが解放されます。
                         </p>
                       )}
@@ -4543,11 +4621,11 @@ function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--text-accent)' }}>
                       {c.name}
-                      {won && <span style={{ fontSize: '0.7rem', color: '#ffd24a' }}> 優勝🏆</span>}
-                      {!won && cleared && <span style={{ fontSize: '0.7rem', color: '#4ade80' }}> 入賞✓</span>}
+                      {won && <span style={{ fontSize: '0.72rem', color: '#ffd24a' }}> 優勝🏆</span>}
+                      {!won && cleared && <span style={{ fontSize: '0.72rem', color: '#4ade80' }}> 入賞✓</span>}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{c.flavor}</div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                       規定ポーズ {c.poses.length}種／ライバル {c.rivals.length}人
                       {best !== undefined && <span> ／ ベスト <b style={{ color: 'var(--text-accent)' }}>{best}</b></span>}
                     </div>
@@ -4607,7 +4685,7 @@ function App() {
           {playerName && (
             <button
               onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
-              style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
+              style={{ minHeight: '40px', padding: '0.3rem 0.9rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
             >
               👤 {playerName} <span style={{ color: 'var(--text-secondary)' }}>✏️</span>
             </button>
@@ -4615,7 +4693,7 @@ function App() {
           <button
             onClick={() => setShowSettingsModal(true)}
             aria-label="設定"
-            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
+            style={{ minHeight: '40px', padding: '0.3rem 0.9rem', fontSize: '0.85rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
           >
             ⚙️ 設定
           </button>
@@ -4697,7 +4775,7 @@ function App() {
               >
                 🥤 プロテインを飲む
               </button>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px' }}>
                 筋トレ後2時間以内にプロテインを飲むことで次回筋トレ時にEXPボーナスが付与されます
               </p>
             </div>
@@ -4740,6 +4818,7 @@ function App() {
                       key={muscle} 
                       className="glass-panel muscle-card"
                       onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(muscle); }}
+                      {...pressableProps(() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(muscle); })}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                         borderColor: isTrainedToday ? '#4ade80' : undefined,
@@ -4761,7 +4840,7 @@ function App() {
                         {mStats.nickname || MUSCLE_NAMES[muscle]}
                       </h3>
                       {mStats.nickname && (
-                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', margin: '-0.15rem 0 0.05rem', lineHeight: 1 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '-0.15rem 0 0.05rem', lineHeight: 1 }}>
                           {MUSCLE_NAMES[muscle]}
                         </span>
                       )}
@@ -4778,7 +4857,7 @@ function App() {
                         <img
                           src={getSpriteSrc(muscle, phase, branch)}
                           onError={e => handleSpriteError(e, muscle)}
-                          alt={muscle}
+                          alt={MUSCLE_NAMES[muscle]}
                           className={`monster-image`}
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : (branchInfo ? `drop-shadow(0 0 6px ${branchInfo.color}) drop-shadow(0 0 3px ${branchInfo.color})` : 'none') }}
                         />
@@ -4841,12 +4920,12 @@ function App() {
                       {/* 休息ゲージ */}
                       {isRecovering && (
                         <div style={{ width: '100%', marginTop: '0.5rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'orange', marginBottom: '2px' }}>
-                            <span>休息中</span>
-                            <span>あと{Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000))}時間</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: '0.3rem', fontSize: '0.72rem', color: '#ff9f43', marginBottom: '2px' }}>
+                            <span style={{ whiteSpace: 'nowrap' }}>休息中</span>
+                            <span style={{ whiteSpace: 'nowrap' }}>あと{Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000))}時間</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${(timeSinceLastTraining / requiredRecoveryMs) * 100}%`, height: '100%', background: 'orange', transition: 'width 0.5s ease-out' }} />
+                            <div style={{ width: `${(timeSinceLastTraining / requiredRecoveryMs) * 100}%`, height: '100%', background: '#ff9f43', transition: 'width 0.5s ease-out' }} />
                           </div>
                         </div>
                       )}
@@ -4865,9 +4944,9 @@ function App() {
                             data-tooltip-id="calendar-tooltip"
                             data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate(superCompEndsAt)}まで）`}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#4ade80', marginBottom: '2px' }}>
-                              <span>狙い目⚡</span>
-                              <span>あと{remainingHours}時間</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: '0.3rem', fontSize: '0.72rem', color: '#4ade80', marginBottom: '2px' }}>
+                              <span style={{ whiteSpace: 'nowrap' }}>狙い目⚡</span>
+                              <span style={{ whiteSpace: 'nowrap' }}>あと{remainingHours}時間</span>
                             </div>
                             <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ width: `${remainingPct}%`, height: '100%', background: 'linear-gradient(90deg, #4ade80, #4ade80)', transition: 'width 0.5s ease-out' }} />
@@ -5022,7 +5101,7 @@ function App() {
                         <img
                           src={getSpriteSrc(target.muscle, phase, targetBranch)}
                           onError={e => handleSpriteError(e, target.muscle)}
-                          alt={target.muscle}
+                          alt={MUSCLE_NAMES[target.muscle]}
                           style={{ height: '40px', objectFit: 'contain', filter: isRecovering ? 'brightness(0.6) grayscale(0.4)' : 'none' }}
                         />
                         {isRecovering && (
@@ -5030,7 +5109,7 @@ function App() {
                             💤
                           </div>
                         )}
-                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : '#4ade80', fontWeight: isRecovering ? 'normal' : 'bold', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.72rem', color: isRecovering ? 'orange' : '#4ade80', fontWeight: isRecovering ? 'normal' : 'bold', marginTop: '2px' }}>
                           {MUSCLE_NAMES[target.muscle]}
                         </span>
                       </div>
@@ -5289,7 +5368,7 @@ function App() {
 
       {/* 設定画面：プレイヤー名・体重・通知などの設定項目を1画面にまとめたモーダル */}
       {showSettingsModal && (
-        <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowSettingsModal(false)}>
+        <ModalOverlay label="設定" zIndex={1002} onClose={() => setShowSettingsModal(false)} closeOnBackdrop>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '420px', width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
             <h1 style={{ color: 'var(--text-accent)', fontSize: '1.5rem', marginBottom: '1.2rem', textAlign: 'center' }}>⚙️ 設定</h1>
 
@@ -5351,7 +5430,7 @@ function App() {
                         オフにする
                       </button>
                     </div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
                       部位が超回復（鍛えどき）になったらお知らせします。端末を閉じている間の通知はChrome/Android等の対応環境のみです。
                     </p>
                   </>
@@ -5368,7 +5447,7 @@ function App() {
                         オンにする
                       </button>
                     </div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.6rem 0 0' }}>
                       部位が超回復して「狙い目」になったら通知でお知らせします（EXPボーナスのチャンス）。
                     </p>
                   </>
@@ -5383,12 +5462,12 @@ function App() {
               閉じる
             </button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* プレイヤー登録モーダル：未登録なら初回起動時に表示。登録した名前をキャラが呼んでくれる */}
       {showPlayerModal && (
-        <div className="modal-overlay" style={{ zIndex: 1003 }} onClick={() => { if (playerName) setShowPlayerModal(false); }}>
+        <ModalOverlay label="プレイヤー登録" zIndex={1003} onClose={playerName ? () => setShowPlayerModal(false) : undefined} closeOnBackdrop>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out', maxWidth: '360px', width: '90%' }}>
             <h1 style={{ color: 'var(--text-accent)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>👤 プレイヤー登録</h1>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.2rem', lineHeight: 1.6 }}>
@@ -5427,12 +5506,12 @@ function App() {
               )}
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Result Modal Overlay */}
       {recordResult && (
-        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+        <ModalOverlay label="トレーニング結果" zIndex={1001} onClose={closeResultModal}>
           <div className="modal-content result-modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out' }}>
             <h1 style={{ color: '#ffd24a', fontSize: '2rem', marginBottom: '1rem' }}>TRAINING COMPLETE!</h1>
             {recordResult.isBestPump && (
@@ -5461,12 +5540,12 @@ function App() {
               閉じる
             </button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Achievement Alert Modal Overlay */}
       {(!recordResult && achievementAlert) && (
-        <div className="modal-overlay" style={{ zIndex: 1002 }}>
+        <ModalOverlay label="実績解除" zIndex={1002} onClose={() => setAchievementAlert(null)}>
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'popUp 0.5s ease-out' }}>
             <h1 style={{ color: '#6ea8ff', fontSize: '2.5rem', marginBottom: '1rem' }}>🏆 実績解除！ 🏆</h1>
             <p style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
@@ -5479,7 +5558,7 @@ function App() {
               すごい！
             </button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Evolution Modal Overlay */}
@@ -5488,7 +5567,7 @@ function App() {
         const branchInfo = alert.phase === 3 && alert.branch ? BRANCH_INFO[alert.branch] : null;
         const isChange = !!alert.changed; // 進化ではなく、既存の第3形態が別の型へ変化したケース
         return (
-        <div className="modal-overlay">
+        <ModalOverlay label="進化" onClose={closeEvolutionAlert}>
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
             <h1 style={{ color: branchInfo ? branchInfo.color : '#ffd24a', fontSize: '3rem', marginBottom: '1rem' }}>
               {isChange ? '型が変化！！' : branchInfo ? '分岐進化！！' : '進化！！'}
@@ -5522,18 +5601,18 @@ function App() {
               {evolutionAlerts.length > 1 ? '次へ' : '閉じる'}
             </button>
           </div>
-        </div>
+        </ModalOverlay>
         );
       })()}
 
       {/* Muscle Detail Modal Overlay */}
       {selectedMuscleInfo && (
-        <div className="modal-overlay" onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }}>
+        <ModalOverlay label={`${MUSCLE_NAMES[selectedMuscleInfo]}の詳細`} onClose={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }} closeOnBackdrop>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedMuscleInfo]}</span>
+                  <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedMuscleInfo]}</span>
                   {stats[selectedMuscleInfo].nickname ? (
                     <>
                       <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem', wordBreak: 'break-word' }}>{stats[selectedMuscleInfo].nickname}</h2>
@@ -5796,21 +5875,21 @@ function App() {
 
             <button onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(null); }} style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* 図鑑の筋肉詳細モーダル：育成状況に依らない静的な情報（説明・おすすめ種目・Tips・分岐進化タイプ）を表示する */}
       {selectedZukanMuscle && (
-        <div className="modal-overlay" onClick={() => setSelectedZukanMuscle(null)}>
+        <ModalOverlay label={`図鑑：${MUSCLE_NAMES[selectedZukanMuscle]}`} onClose={() => setSelectedZukanMuscle(null)} closeOnBackdrop>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ textAlign: 'left', animation: 'scaleIn 0.3s ease-out', maxWidth: '400px', width: '90%', padding: 0, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
             {/* ヘッダー：スクロールしても常に見えるよう固定 */}
             <div style={{ flexShrink: 0, padding: '1.25rem 1.5rem 0.9rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedZukanMuscle]}</span>
+                  <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.15rem', letterSpacing: '0.05em' }}>{MUSCLE_READINGS[selectedZukanMuscle]}</span>
                   <h2 style={{ color: 'var(--text-accent)', margin: 0, fontSize: '1.4rem' }}>{MUSCLE_NAMES[selectedZukanMuscle]}</h2>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>📚 図鑑</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>📚 図鑑</span>
               </div>
             </div>
 
@@ -5848,7 +5927,7 @@ function App() {
                     <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>
                       {pInfo.label}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: zBranchInfo ? zBranchInfo.color : 'var(--text-secondary)' }}>
+                    <div style={{ fontSize: '0.72rem', color: zBranchInfo ? zBranchInfo.color : 'var(--text-secondary)' }}>
                       {discovered ? (zBranchInfo ? `${zBranchInfo.emoji} ${zBranchInfo.label}` : pInfo.stage) : `Lv.${pInfo.unlockLevel}で解放`}
                     </div>
                     <div style={{ marginTop: '0.6rem', display: 'inline-block', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '999px', padding: '0.2rem 0.7rem' }}>
@@ -5895,12 +5974,12 @@ function App() {
               <button onClick={() => setSelectedZukanMuscle(null)} style={{ width: '100%', padding: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>閉じる</button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
 
     {/* Navigation Tabs - Moved outside main wrapper to prevent z-index / fixed positioning issues */}
-    <div className="tab-container">
+    <nav className="tab-container" aria-label="メインメニュー">
       {([
         ['characters', '👾', 'マスモン'],
         ['record', '🏋️', '記録'],
@@ -5919,7 +5998,7 @@ function App() {
           <span className="tab-label">{label}</span>
         </button>
       ))}
-    </div>
+    </nav>
     </>
   );
 }

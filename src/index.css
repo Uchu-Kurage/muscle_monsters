@@ -236,6 +236,8 @@ h1, h2, h3 {
 /* Buttons：押すと沈むゲームのボタン */
 button {
   font-family: var(--font-pixel);
+  /* ダブルタップ拡大の判定待ちをなくし、タップへの反応を速くする */
+  touch-action: manipulation;
   background: var(--btn-bg);
   border: 2px solid var(--btn-border);
   color: var(--btn-text);
@@ -329,7 +331,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--chalk);
   border: 2px solid var(--window-rim);
   border-radius: 8px;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.35;
   color: #1a2030;
@@ -565,6 +567,8 @@ input:focus, select:focus, textarea:focus {
 
 .tab-button {
   font-family: var(--font-pixel);
+  /* ダブルタップ拡大の判定待ちをなくし、タップへの反応を速くする */
+  touch-action: manipulation;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -588,7 +592,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .tab-button .tab-label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   white-space: nowrap;
 }
 
@@ -629,6 +633,7 @@ input:focus, select:focus, textarea:focus {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+[role="button"]:focus-visible,
 .muscle-card:focus-visible {
   outline: 3px solid var(--plate-yellow);
   outline-offset: 2px;
@@ -641,8 +646,14 @@ select:focus-visible,
   .result-level-up-text {
     animation: none !important;
   }
-  * {
+  /* 常時ループする演出（⚡の点滅・称号のふわふわ等）も1回で止め、登場演出は即座に最終状態へ */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -713,4 +724,11 @@ select:focus-visible,
   background: var(--bg-panel-raised);
   border: 1px solid var(--border-color);
   box-shadow: none;
+}
+
+/* ボタン以外のクリック可能要素（カード等）もポインタとタップ反応をそろえる */
+[role="button"] {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }

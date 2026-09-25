@@ -324,7 +324,11 @@ Modals (player registration / result / achievement / evolution / muscle detail
 / encyclopedia) are rendered conditionally with a priority order enforced by
 the `!recordResult && !achievementAlert && …` guards — preserve that ordering
 so only one shows at a time. `evolutionAlerts` is a queue consumed one modal
-at a time via `closeEvolutionAlert`.
+at a time via `closeEvolutionAlert`. Every modal is wrapped in `ModalOverlay`
+(`role="dialog"`, focus moves in on open and back on close, Tab is trapped,
+Esc calls `onClose`; `closeOnBackdrop` enables backdrop-tap close) — use it for
+new modals instead of a bare `.modal-overlay` div. Non-button clickable
+elements (cards etc.) spread `pressableProps(fn)` so they are keyboard-operable.
 
 ## Conventions
 
