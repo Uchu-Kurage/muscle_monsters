@@ -45,7 +45,7 @@ const EQUIPMENT_INFO: Record<EquipmentType, { label: string; emoji: string; colo
   machine: { label: 'マシン', emoji: '⚙️', color: '#4dabf7' },
   bar: { label: '鉄棒・バー', emoji: '🧗', color: '#a78bfa' },
   roller: { label: 'ローラー', emoji: '🎡', color: '#ffd43b' },
-  none: { label: '器具なし', emoji: '🙆', color: '#39ff14' },
+  none: { label: '器具なし', emoji: '🙆', color: '#4ade80' },
 };
 
 interface ExerciseDef {
@@ -135,13 +135,25 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'limit_break', name: '限界突破', description: '1回のトレーニングで100EXP以上獲得する', check: (_, logs) => logs.some(l => l.gainedExp >= 100) },
 ];
 
+// plate: グループ見出しに添えるバンパープレートの色（赤25kg／青20kg／黄15kg／緑10kg／白5kg）
 const MUSCLE_GROUPS = [
-  { id: 'chest', title: '🛡️ 胸部', muscles: ['chest'] as MuscleType[] },
-  { id: 'back', title: '🦅 背部', muscles: ['back', 'trapezius', 'erector_spinae', 'rhomboids'] as MuscleType[] },
-  { id: 'shoulder_arms', title: '💪 肩・腕', muscles: ['shoulder', 'biceps', 'triceps', 'brachioradialis', 'forearm_flexors'] as MuscleType[] },
-  { id: 'abs_core', title: '🔥 腹・体幹', muscles: ['abs', 'obliques', 'iliopsoas', 'transversus_abdominis'] as MuscleType[] },
-  { id: 'legs_glutes', title: '🦵 脚・お尻', muscles: ['legs', 'hamstrings', 'glutes', 'gluteus_medius', 'adductors'] as MuscleType[] },
+  { id: 'chest', title: '🛡️ 胸部', label: '胸部', plate: '#e5484d', muscles: ['chest'] as MuscleType[] },
+  { id: 'back', title: '🦅 背部', label: '背部', plate: '#3e7bfa', muscles: ['back', 'trapezius', 'erector_spinae', 'rhomboids'] as MuscleType[] },
+  { id: 'shoulder_arms', title: '💪 肩・腕', label: '肩・腕', plate: '#f5c518', muscles: ['shoulder', 'biceps', 'triceps', 'brachioradialis', 'forearm_flexors'] as MuscleType[] },
+  { id: 'abs_core', title: '🔥 腹・体幹', label: '腹・体幹', plate: '#2fbf71', muscles: ['abs', 'obliques', 'iliopsoas', 'transversus_abdominis'] as MuscleType[] },
+  { id: 'legs_glutes', title: '🦵 脚・お尻', label: '脚・お尻', plate: '#e9edf3', muscles: ['legs', 'hamstrings', 'glutes', 'gluteus_medius', 'adductors'] as MuscleType[] },
 ];
+
+// ヘッダーのバーベルに載せるプレート（競技用の色順）。総レベルが BARBELL_LEVELS_PER_PLATE 上がるごとに左右1枚ずつ増える。
+const BARBELL_PLATES = [
+  { color: '#e5484d', height: 40 },
+  { color: '#3e7bfa', height: 40 },
+  { color: '#f5c518', height: 34 },
+  { color: '#2fbf71', height: 28 },
+  { color: '#e9edf3', height: 22 },
+  { color: '#e5484d', height: 18 },
+] as const;
+const BARBELL_LEVELS_PER_PLATE = 15;
 
 const EXERCISES: ExerciseDef[] = [
   // 胸 (Chest)
@@ -608,11 +620,11 @@ async function registerPeriodicSync(): Promise<void> {
 // コンディションの段階。上から順に評価し、condition >= min の最初の段階を採用する。
 // 中立点 50 を含む「普通」帯を x1.0 とし、上振れでボーナス（>1）、下振れでペナルティ（<1）。
 const CONDITION_TIERS = [
-  { min: 85, label: '絶好調', emoji: '😤', color: '#39ff14', multiplier: 1.3 },
-  { min: 65, label: '好調',   emoji: '💪', color: '#00e5ff', multiplier: 1.15 },
-  { min: 40, label: '普通',   emoji: '😐', color: '#ffd23f', multiplier: 1.0 },
-  { min: 20, label: '不調',   emoji: '😓', color: '#ff9f1c', multiplier: 0.85 },
-  { min: 0,  label: '絶不調', emoji: '🤕', color: '#ff4d4d', multiplier: 0.7 },
+  { min: 85, label: '絶好調', emoji: '😤', color: '#4ade80', multiplier: 1.3 },
+  { min: 65, label: '好調',   emoji: '💪', color: '#6ea8ff', multiplier: 1.15 },
+  { min: 40, label: '普通',   emoji: '😐', color: '#ffd24a', multiplier: 1.0 },
+  { min: 20, label: '不調',   emoji: '😓', color: '#ff9f43', multiplier: 0.85 },
+  { min: 0,  label: '絶不調', emoji: '🤕', color: '#ff5c5c', multiplier: 0.7 },
 ] as const;
 
 type ConditionTier = (typeof CONDITION_TIERS)[number];
@@ -1175,19 +1187,19 @@ const BRANCH_INFO: Record<EvolutionBranch, { label: string; emoji: string; color
   power: {
     label: 'パワー型',
     emoji: '⚔️',
-    color: '#ff4d4d',
+    color: '#ff5c5c',
     description: '低レップ・高重量で鍛え上げた「剛」の進化。爆発的なパワーを宿す。',
   },
   endurance: {
     label: '持久型',
     emoji: '🌀',
-    color: '#00e5ff',
+    color: '#6ea8ff',
     description: '高レップで鍛え抜いた「粘り」の進化。尽きぬスタミナを宿す。',
   },
   balanced: {
     label: 'バランス型',
     emoji: '⭐',
-    color: '#ffd23f',
+    color: '#ffd24a',
     description: 'バランス良く鍛え上げた「王道」の進化。あらゆる力を高水準で備える。',
   },
 };
@@ -1365,7 +1377,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
         fontSize: '0.8rem',
         background: active ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.4)',
         color: active ? 'var(--btn-hover-text)' : 'var(--text-primary)',
-        border: `1px solid ${active ? '#39ff14' : 'var(--border-color)'}`,
+        border: `1px solid ${active ? '#4ade80' : 'var(--border-color)'}`,
         borderRadius: '999px',
         textTransform: 'none',
         whiteSpace: 'nowrap',
@@ -1439,12 +1451,12 @@ function ResultRow({ detail }: { detail: RecordResultDetail }) {
           {MUSCLE_NAMES[detail.muscle]}
           {branchInfo && <span style={{ color: branchInfo.color, marginLeft: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>{branchInfo.emoji}{branchInfo.label}</span>}
           <span className="result-exp-text">
-            Lv.{currentLevel} <span style={{ fontWeight: 'bold', color: '#39ff14' }}>(+{detail.gainedExp} EXP)</span>
+            Lv.{currentLevel} <span style={{ fontWeight: 'bold', color: '#4ade80' }}>(+{detail.gainedExp} EXP)</span>
             {detail.isOverworked && <span style={{ color: 'orange', marginLeft: '4px', fontSize: '0.8rem' }}>(疲労半減)</span>}
-            {detail.isSuperComp && <span style={{ color: '#39ff14', marginLeft: '4px', fontSize: '0.8rem' }}>(⚡超回復 x{SUPERCOMP_BONUS})</span>}
-            {detail.isConditionBonus && <span style={{ color: '#39ff14', marginLeft: '4px', fontSize: '0.8rem' }}>({detail.conditionLabel} x{detail.conditionMultiplier})</span>}
-            {detail.isPoorCondition && <span style={{ color: '#ff9f1c', marginLeft: '4px', fontSize: '0.8rem' }}>({detail.conditionLabel} x{detail.conditionMultiplier})</span>}
-            {detail.isProteinBonus && <span style={{ color: '#00ffff', marginLeft: '4px', fontSize: '0.8rem' }}>(🥤 x1.3)</span>}
+            {detail.isSuperComp && <span style={{ color: '#4ade80', marginLeft: '4px', fontSize: '0.8rem' }}>(⚡超回復 x{SUPERCOMP_BONUS})</span>}
+            {detail.isConditionBonus && <span style={{ color: '#4ade80', marginLeft: '4px', fontSize: '0.8rem' }}>({detail.conditionLabel} x{detail.conditionMultiplier})</span>}
+            {detail.isPoorCondition && <span style={{ color: '#ff9f43', marginLeft: '4px', fontSize: '0.8rem' }}>({detail.conditionLabel} x{detail.conditionMultiplier})</span>}
+            {detail.isProteinBonus && <span style={{ color: '#6ea8ff', marginLeft: '4px', fontSize: '0.8rem' }}>(🥤 x1.3)</span>}
           </span>
           {didLevelUp && <span className="result-level-up-text">LEVEL UP!</span>}
         </div>
@@ -1734,10 +1746,10 @@ function getBalanceInfo(stats: AppState): { factor: number; label: string; color
   const variance = groupAvgs.reduce((a, b) => a + (b - mean) ** 2, 0) / groupAvgs.length;
   const cv = mean > 0 ? Math.sqrt(variance) / mean : 0; // 変動係数（ばらつき）
   const factor = Math.max(0.85, Math.min(1.1, 1.1 - cv * 0.5));
-  if (factor >= 1.05) return { factor, label: '均整◎', color: '#39ff14' };
-  if (factor >= 0.95) return { factor, label: 'バランス良', color: '#00e5ff' };
-  if (factor >= 0.9) return { factor, label: '普通', color: '#ffd23f' };
-  return { factor, label: '弱点あり', color: '#ff9f1c' };
+  if (factor >= 1.05) return { factor, label: '均整◎', color: '#4ade80' };
+  if (factor >= 0.95) return { factor, label: 'バランス良', color: '#6ea8ff' };
+  if (factor >= 0.9) return { factor, label: '普通', color: '#ffd24a' };
+  return { factor, label: '弱点あり', color: '#ff9f43' };
 }
 
 // キメ（ポージング）ミニゲームの難易度。大会の格が上がるほどキレゾーンが細く・
@@ -1795,10 +1807,10 @@ function gaugeZoneCenter(zone: GaugeZone, frame: number, diff: GaugeDifficulty):
 interface TimingResult { mult: number; label: string; color: string; }
 function judgeTimingAt(pos: number, centers: number[], diff: GaugeDifficulty): TimingResult {
   const d = Math.min(...centers.map(c => Math.abs(pos - c)));
-  if (d <= diff.halfWidth) return { mult: 1.2, label: 'キレッキレ！ ⚡', color: '#39ff14' };
-  if (d <= diff.halfWidth + diff.goodMargin) return { mult: 1.05, label: 'ナイスポーズ！', color: '#00e5ff' };
-  if (d <= diff.halfWidth + diff.goodMargin + diff.okMargin) return { mult: 0.95, label: 'まずまず', color: '#ffd23f' };
-  return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f1c' };
+  if (d <= diff.halfWidth) return { mult: 1.2, label: 'キレッキレ！ ⚡', color: '#4ade80' };
+  if (d <= diff.halfWidth + diff.goodMargin) return { mult: 1.05, label: 'ナイスポーズ！', color: '#6ea8ff' };
+  if (d <= diff.halfWidth + diff.goodMargin + diff.okMargin) return { mult: 0.95, label: 'まずまず', color: '#ffd24a' };
+  return { mult: 0.85, label: 'ポーズが甘い…', color: '#ff9f43' };
 }
 
 // ボディビル大会名物の「ヤジ（掛け声）」。キメの出来（タイミング倍率）で客席の盛り上がりが変わる。
@@ -1984,7 +1996,7 @@ interface JudgeSection { axis: string; grade: string; color: string; comment: st
 interface JudgeReport { sections: JudgeSection[]; summary: string; }
 interface GradeTier { min: number; grade: string; color: string; comment: string; }
 
-const GRADE_COLOR = { S: '#39ff14', A: '#00e5ff', B: '#ffd23f', C: '#ff9f1c', D: '#ff6b6b' } as const;
+const GRADE_COLOR = { S: '#4ade80', A: '#6ea8ff', B: '#ffd24a', C: '#ff9f43', D: '#ff6b6b' } as const;
 
 function pickGradeTier(v: number, tiers: GradeTier[]): GradeTier {
   return tiers.find(t => v >= t.min) ?? tiers[tiers.length - 1];
@@ -2375,7 +2387,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
       : (placement === 'win' || placement === 'pass') && !wasClearedRef.current ? getPlacementTitle(contest)
       : null;
     const headline = placement === 'win' ? '🏆 優勝！' : placement === 'pass' ? '🎉 入賞！' : '😢 入賞ならず…';
-    const headColor = placement === 'fail' ? '#ff6b6b' : '#ffea00';
+    const headColor = placement === 'fail' ? '#ff6b6b' : '#ffd24a';
     const mcLine =
       placement === 'win' ? `優勝はっ…${displayName} 選手ぅーっ！！ おめでとうございます！`
       : placement === 'pass' ? `${displayName} 選手、見事な仕上がりで入賞です！`
@@ -2394,8 +2406,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
             <div key={i} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem',
               padding: '0.35rem 0.5rem', borderRadius: '6px', margin: '0.15rem 0',
-              background: c.isPlayer ? 'rgba(0,229,255,0.14)' : 'transparent',
-              border: c.isPlayer ? '1px solid rgba(0,229,255,0.5)' : '1px solid transparent',
+              background: c.isPlayer ? 'rgba(110,168,255,0.14)' : 'transparent',
+              border: c.isPlayer ? '1px solid rgba(110,168,255,0.5)' : '1px solid transparent',
             }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
                 <span style={{ width: '1.8rem', textAlign: 'center' }}>{medal(i)}</span>
@@ -2441,7 +2453,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
         </div>
 
         {newTitle && (
-          <div style={{ fontSize: '0.9rem', color: '#00ffff', textAlign: 'center', marginBottom: '1rem', padding: '0.7rem', background: 'rgba(0,255,255,0.08)', borderRadius: '8px', border: '1px solid rgba(0,255,255,0.4)' }}>
+          <div style={{ fontSize: '0.9rem', color: '#6ea8ff', textAlign: 'center', marginBottom: '1rem', padding: '0.7rem', background: 'rgba(110,168,255,0.08)', borderRadius: '8px', border: '1px solid rgba(110,168,255,0.4)' }}>
             🏅 称号「{newTitle}」を獲得しました！
           </div>
         )}
@@ -2470,7 +2482,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>🧮 得点の計算式</div>
           <div style={{ fontSize: '0.7rem', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
             総合スコア＝<b style={{ color: 'var(--text-primary)' }}>Σ(各ポーズ得点)</b>×<b style={{ color: balance.color }}>全身バランス</b><br />
-            ポーズ得点＝<b style={{ color: '#00e5ff' }}>筋量</b>(Σ レベル×重み)×<b style={{ color: '#39ff14' }}>仕上がり</b>(調子・鍛えどき)×<b style={{ color: '#ffd23f' }}>キメ</b>(タイミング)
+            ポーズ得点＝<b style={{ color: '#6ea8ff' }}>筋量</b>(Σ レベル×重み)×<b style={{ color: '#4ade80' }}>仕上がり</b>(調子・鍛えどき)×<b style={{ color: '#ffd24a' }}>キメ</b>(タイミング)
           </div>
           {/* ポーズ別の内訳（タップで部位ごとの計算内訳を開閉） */}
           <div style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>各ポーズをタップすると部位ごとの内訳が開きます。</div>
@@ -2493,9 +2505,9 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                     </span>
                   </div>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                    <span style={{ color: '#00e5ff' }}>筋量 {fmt(b.levelSum)}</span> ×{' '}
-                    <span style={{ color: '#39ff14' }}>仕上 ×{b.finishFactor.toFixed(2)}</span> ×{' '}
-                    <span style={{ color: '#ffd23f' }}>キメ ×{b.timingMult.toFixed(2)}</span> ＝ {b.score}
+                    <span style={{ color: '#6ea8ff' }}>筋量 {fmt(b.levelSum)}</span> ×{' '}
+                    <span style={{ color: '#4ade80' }}>仕上 ×{b.finishFactor.toFixed(2)}</span> ×{' '}
+                    <span style={{ color: '#ffd24a' }}>キメ ×{b.timingMult.toFixed(2)}</span> ＝ {b.score}
                   </div>
 
                   {/* 部位ごとの内訳 */}
@@ -2505,14 +2517,14 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                         <span style={{ color: 'var(--text-secondary)' }}>部位</span>
                         <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>Lv</span>
                         <span style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>重み</span>
-                        <span style={{ color: '#00e5ff', textAlign: 'right' }}>筋量</span>
-                        <span style={{ color: '#39ff14', textAlign: 'right' }}>仕上</span>
+                        <span style={{ color: '#6ea8ff', textAlign: 'right' }}>筋量</span>
+                        <span style={{ color: '#4ade80', textAlign: 'right' }}>仕上</span>
                         {b.rows.map(r => (
                           <Fragment key={r.muscle}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {r.name}
-                              {r.superComp && <span style={{ color: '#39ff14' }}> ⚡</span>}
-                              {r.recovering && <span style={{ color: '#ff9f1c' }}> 💤</span>}
+                              {r.superComp && <span style={{ color: '#4ade80' }}> ⚡</span>}
+                              {r.recovering && <span style={{ color: '#ff9f43' }}> 💤</span>}
                             </span>
                             <span style={{ textAlign: 'right' }}>{r.level}</span>
                             <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>×{r.weight}</span>
@@ -2522,9 +2534,9 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                         ))}
                       </div>
                       <div style={{ marginTop: '0.45rem', fontSize: '0.66rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        筋量合計 <b style={{ color: '#00e5ff' }}>{fmt(b.levelSum)}</b>（＝各部位の Lv×重み の合計）<br />
-                        仕上がり <b style={{ color: '#39ff14' }}>×{b.finishFactor.toFixed(2)}</b>（各部位の仕上がりを重みで加重平均）<br />
-                        キメ <b style={{ color: '#ffd23f' }}>×{b.timingMult.toFixed(2)}</b> → 得点 <b style={{ color: 'var(--text-accent)' }}>{b.score}</b>
+                        筋量合計 <b style={{ color: '#6ea8ff' }}>{fmt(b.levelSum)}</b>（＝各部位の Lv×重み の合計）<br />
+                        仕上がり <b style={{ color: '#4ade80' }}>×{b.finishFactor.toFixed(2)}</b>（各部位の仕上がりを重みで加重平均）<br />
+                        キメ <b style={{ color: '#ffd24a' }}>×{b.timingMult.toFixed(2)}</b> → 得点 <b style={{ color: 'var(--text-accent)' }}>{b.score}</b>
                       </div>
                     </div>
                   )}
@@ -2550,8 +2562,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {mi.name} <span style={{ color: 'var(--text-secondary)' }}>Lv{mi.level}</span>
                     <span style={{ color: mi.tier.color, marginLeft: '0.3rem' }}>{mi.tier.emoji}{mi.tier.label}</span>
-                    {mi.superComp && <span style={{ color: '#39ff14', marginLeft: '0.2rem' }}>⚡</span>}
-                    {mi.recovering && <span style={{ color: '#ff9f1c', marginLeft: '0.2rem' }}>💤</span>}
+                    {mi.superComp && <span style={{ color: '#4ade80', marginLeft: '0.2rem' }}>⚡</span>}
+                    {mi.recovering && <span style={{ color: '#ff9f43', marginLeft: '0.2rem' }}>💤</span>}
                   </span>
                   <span style={{ flexShrink: 0, color: 'var(--text-secondary)' }}>
                     重み{fmt(mi.totalWeight)}・<b style={{ color: 'var(--text-primary)' }}>筋量{fmt(mi.kinryo)}</b>
@@ -2570,19 +2582,19 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-accent)', marginBottom: '0.5rem' }}>🔎 考察：次の一手</div>
 
           <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
-            <div style={{ color: '#00e5ff', fontWeight: 'bold', marginBottom: '0.25rem' }}>📈 育てると効く部位</div>
+            <div style={{ color: '#6ea8ff', fontWeight: 'bold', marginBottom: '0.25rem' }}>📈 育てると効く部位</div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>今回の条件で +1レベルあたりの得点効率が高い順。</div>
             {detail.growPicks.map(mi => (
               <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
                 <span>{mi.name}<span style={{ color: 'var(--text-secondary)' }}> Lv{mi.level}</span></span>
-                <span style={{ color: '#00e5ff' }}>+1Lvで約 +{Math.max(1, Math.round(mi.perLevel))}pt</span>
+                <span style={{ color: '#6ea8ff' }}>+1Lvで約 +{Math.max(1, Math.round(mi.perLevel))}pt</span>
               </div>
             ))}
           </div>
 
           {detail.conditionPicks.length > 0 && (
             <div style={{ fontSize: '0.72rem', marginBottom: '0.7rem' }}>
-              <div style={{ color: '#39ff14', fontWeight: 'bold', marginBottom: '0.25rem' }}>🔥 調子を上げると伸びる部位</div>
+              <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '0.25rem' }}>🔥 調子を上げると伸びる部位</div>
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem', marginBottom: '0.3rem' }}>好調に届いていない主力部位。トレ後の休養と適時トレで仕上がりが伸びる。</div>
               {detail.conditionPicks.map(mi => (
                 <div key={mi.muscle} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1rem 0' }}>
@@ -2594,7 +2606,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
           )}
 
           <div style={{ fontSize: '0.72rem' }}>
-            <div style={{ color: '#ffd23f', fontWeight: 'bold', marginBottom: '0.25rem' }}>⚖️ バランスの弱点</div>
+            <div style={{ color: '#ffd24a', fontWeight: 'bold', marginBottom: '0.25rem' }}>⚖️ バランスの弱点</div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.66rem' }}>
               最も手薄なのは <b style={{ color: 'var(--text-primary)' }}>{groupLabel(detail.weakGroupTitle)}</b>。ここを底上げすると全身バランス係数が上がり、全ポーズの得点が底上げされる。
             </div>
@@ -2660,7 +2672,7 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
       <div style={{ marginBottom: '1rem' }}>
         {/* 難易度表示（大会の格で上がる） */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem', fontSize: '0.66rem', color: 'var(--text-secondary)' }}>
-          <span>キメ難易度 <span style={{ color: '#ffd23f' }}>{'★'.repeat(gaugeDiff.stars)}{'☆'.repeat(4 - gaugeDiff.stars)}</span></span>
+          <span>キメ難易度 <span style={{ color: '#ffd24a' }}>{'★'.repeat(gaugeDiff.stars)}{'☆'.repeat(4 - gaugeDiff.stars)}</span></span>
           <span style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {gaugeFeatures.map((f, i) => (
               <span key={i} style={{ padding: '0 0.3rem', borderRadius: '4px', background: 'rgba(255,255,255,0.08)' }}>{f}</span>
@@ -2674,8 +2686,8 @@ function ContestView({ contest, poses, stats, balance, playerName, alreadyCleare
             const claimed = claimedZones.includes(i);
             return (
               <Fragment key={i}>
-                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: claimed ? 'rgba(255,255,255,0.05)' : 'rgba(0,229,255,0.12)', transition: 'left 0.03s linear' }} />
-                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: claimed ? 'rgba(150,150,150,0.35)' : 'rgba(57,255,20,0.4)', borderLeft: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(57,255,20,0.9)'}`, borderRight: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(57,255,20,0.9)'}`, transition: 'left 0.03s linear', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, width: `${2 * (gaugeDiff.halfWidth + gaugeDiff.goodMargin)}%`, background: claimed ? 'rgba(255,255,255,0.05)' : 'rgba(110,168,255,0.12)', transition: 'left 0.03s linear' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${c - gaugeDiff.halfWidth}%`, width: `${2 * gaugeDiff.halfWidth}%`, background: claimed ? 'rgba(150,150,150,0.35)' : 'rgba(74,222,128,0.4)', borderLeft: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(74,222,128,0.9)'}`, borderRight: `1px solid ${claimed ? 'rgba(180,180,180,0.7)' : 'rgba(74,222,128,0.9)'}`, transition: 'left 0.03s linear', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {claimed && <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>✓</span>}
                 </div>
               </Fragment>
@@ -3396,7 +3408,7 @@ function App() {
         isToday: isToday
       });
     }
-    const colors = ['#161b22', '#053b16', '#0b752b', '#1dd354', '#39ff14'];
+    const colors = ['#2a3246', '#14532d', '#0b752b', '#1dd354', '#4ade80'];
     const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
     const weekLabels = ['1W', '2W', '3W', '4W', '5W', '6W'];
 
@@ -3461,7 +3473,7 @@ function App() {
                       backgroundColor: item.isFuture ? 'rgba(255,255,255,0.02)' : colors[item.level],
                       opacity: opacity,
                       boxShadow: item.isToday
-                        ? '0 0 6px rgba(0, 255, 255, 0.7)'
+                        ? '0 0 6px rgba(110,168,255,0.7)'
                         : item.level > 0 && !item.isFuture && item.isCurrentMonth ? `0 0 3px ${colors[item.level]}80` : 'none',
                       // 今日のマスはシアン枠で強調して現在位置をわかりやすくする
                       border: item.isToday
@@ -3818,7 +3830,7 @@ function App() {
   // 履歴タブの「表形式」の描画。縦＝部位、横＝日。セルはセット数（濃淡）＋タップで詳細。
   const renderHistoryMatrix = () => {
     const { days, muscles, cells, maxSets } = historyMatrix;
-    const colors = ['#161b22', '#053b16', '#0b752b', '#1dd354', '#39ff14'];
+    const colors = ['#2a3246', '#14532d', '#0b752b', '#1dd354', '#4ade80'];
     const setsToLevel = (sets: number) => {
       if (sets <= 0) return 0;
       const frac = sets / maxSets;
@@ -3831,7 +3843,7 @@ function App() {
     // 共通セルスタイル
     const stickyLeft: React.CSSProperties = {
       position: 'sticky', left: 0, zIndex: 2,
-      background: '#12151c', borderRight: '1px solid rgba(255,255,255,0.12)',
+      background: '#1f2636', borderRight: '1px solid rgba(255,255,255,0.12)',
     };
     const th: React.CSSProperties = {
       padding: '5px 4px', fontSize: '0.7rem', color: 'var(--text-secondary)',
@@ -3852,7 +3864,7 @@ function App() {
                   部位＼日
                 </th>
                 {days.map(d => (
-                  <th key={d.key} style={{ ...th, position: 'sticky', top: 0, zIndex: 1, background: '#12151c', minWidth: `${cellSize}px` }}>
+                  <th key={d.key} style={{ ...th, position: 'sticky', top: 0, zIndex: 1, background: '#1f2636', minWidth: `${cellSize}px` }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{d.label}</div>
                     <div>({d.weekday})</div>
                   </th>
@@ -3862,7 +3874,7 @@ function App() {
             <tbody>
               {/* プロテイン行 */}
               <tr>
-                <th style={{ ...th, ...stickyLeft, textAlign: 'left', paddingLeft: '8px', color: '#ff7bff', fontWeight: 'bold' }}>
+                <th style={{ ...th, ...stickyLeft, textAlign: 'left', paddingLeft: '8px', color: '#ff8fa0', fontWeight: 'bold' }}>
                   🥤 プロテイン
                 </th>
                 {days.map(d => (
@@ -3943,12 +3955,12 @@ function App() {
       .join(' ');
 
     const statTiles = [
-      { icon: '📅', label: 'トレ日数', value: `${a.totalDays}`, unit: '日', color: '#00ffff' },
-      { icon: '🔥', label: '連続記録', value: `${a.streak}`, unit: '日', color: '#ff8c00' },
-      { icon: '💪', label: '総セット', value: `${a.totalSets.toLocaleString()}`, unit: 'set', color: '#39ff14' },
-      { icon: '🔁', label: '総レップ', value: `${a.totalReps.toLocaleString()}`, unit: '回', color: '#ff00ff' },
-      { icon: '⭐', label: '累計EXP', value: `${a.totalExp.toLocaleString()}`, unit: '', color: '#ffea00' },
-      { icon: '📈', label: '総合Lv', value: `${a.totalLevel}`, unit: '', color: '#00bfff' },
+      { icon: '📅', label: 'トレ日数', value: `${a.totalDays}`, unit: '日', color: '#6ea8ff' },
+      { icon: '🔥', label: '連続記録', value: `${a.streak}`, unit: '日', color: '#ff9f43' },
+      { icon: '💪', label: '総セット', value: `${a.totalSets.toLocaleString()}`, unit: 'set', color: '#4ade80' },
+      { icon: '🔁', label: '総レップ', value: `${a.totalReps.toLocaleString()}`, unit: '回', color: '#ff6b7a' },
+      { icon: '⭐', label: '累計EXP', value: `${a.totalExp.toLocaleString()}`, unit: '', color: '#ffd24a' },
+      { icon: '📈', label: '総合Lv', value: `${a.totalLevel}`, unit: '', color: '#6ea8ff' },
     ];
 
     const subHeading = (icon: string, text: string) => (
@@ -3985,15 +3997,15 @@ function App() {
 
         {/* 総挙上重量ヒーローカード */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,0,127,0.12), rgba(255,140,0,0.12))',
-          border: '1px solid rgba(255,140,0,0.4)',
+          background: 'linear-gradient(135deg, rgba(255,107,122,0.12), rgba(255,159,67,0.12))',
+          border: '1px solid rgba(255,159,67,0.4)',
           borderRadius: '12px',
           padding: '1.2rem',
           marginBottom: '1.2rem',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>🏋️ これまでの総挙上重量</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 'bold', color: '#ff8c00', textShadow: '0 0 15px rgba(255,140,0,0.5)', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '2.2rem', fontWeight: 'bold', color: '#ff9f43', textShadow: '0 0 15px rgba(255,159,67,0.5)', lineHeight: 1.1 }}>
             {Math.round(a.totalVolume).toLocaleString()}<span style={{ fontSize: '1rem', marginLeft: '4px' }}>kg</span>
           </div>
           <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>
@@ -4011,19 +4023,19 @@ function App() {
             <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: '100%' }}>
               {/* グリッド（同心五角形） */}
               {ringLevels.map(frac => (
-                <polygon key={frac} points={ringPoints(frac)} fill="none" stroke="rgba(0,255,255,0.15)" strokeWidth={1} />
+                <polygon key={frac} points={ringPoints(frac)} fill="none" stroke="rgba(110,168,255,0.15)" strokeWidth={1} />
               ))}
               {/* 軸線 */}
               {groupsInOrder.map((_, i) => {
                 const [x, y] = pointAt(i, R);
-                return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(0,255,255,0.15)" strokeWidth={1} />;
+                return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(110,168,255,0.15)" strokeWidth={1} />;
               })}
               {/* データポリゴン */}
-              <polygon points={dataPoints} fill="rgba(255,0,255,0.25)" stroke="#ff00ff" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px rgba(255,0,255,0.6))' }} />
+              <polygon points={dataPoints} fill="rgba(255,107,122,0.25)" stroke="#ff6b7a" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px rgba(255,107,122,0.6))' }} />
               {/* 頂点マーカー */}
               {groupsInOrder.map((g, i) => {
                 const [x, y] = pointAt(i, R * (a.groupScore[g.id] / a.groupMax));
-                return <circle key={g.id} cx={x} cy={y} r={3} fill="#00ffff" />;
+                return <circle key={g.id} cx={x} cy={y} r={3} fill="#6ea8ff" />;
               })}
               {/* ラベル */}
               {groupsInOrder.map((g, i) => {
@@ -4053,7 +4065,7 @@ function App() {
                       <span style={{ color: 'var(--text-secondary)' }}>{ex.sets}set / {ex.count}回</span>
                     </div>
                     <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.08)', borderRadius: '5px', overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #00ffff, #ff00ff)', borderRadius: '5px', transition: 'width 0.6s ease-out' }} />
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #6ea8ff, #ff6b7a)', borderRadius: '5px', transition: 'width 0.6s ease-out' }} />
                     </div>
                   </div>
                 );
@@ -4079,16 +4091,16 @@ function App() {
                         width: '100%',
                         height: `${Math.max(pct, c > 0 ? 8 : 2)}%`,
                         background: isFav
-                          ? 'linear-gradient(180deg, #ffea00, #ff8c00)'
-                          : 'linear-gradient(180deg, #00ffff, #0088ff)',
+                          ? 'linear-gradient(180deg, #ffd24a, #ff9f43)'
+                          : 'linear-gradient(180deg, #6ea8ff, #0088ff)',
                         borderRadius: '4px 4px 0 0',
                         opacity: c > 0 ? 1 : 0.25,
                         transition: 'height 0.6s ease-out',
-                        boxShadow: isFav ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+                        boxShadow: isFav ? '0 0 10px rgba(255,210,74,0.6)' : 'none',
                       }}
                     />
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: isFav ? '#ffea00' : 'var(--text-secondary)', marginTop: '4px', fontWeight: isFav ? 'bold' : 'normal' }}>
+                  <div style={{ fontSize: '0.7rem', color: isFav ? '#ffd24a' : 'var(--text-secondary)', marginTop: '4px', fontWeight: isFav ? 'bold' : 'normal' }}>
                     {WEEKDAY_LABELS[i]}
                   </div>
                 </div>
@@ -4097,7 +4109,7 @@ function App() {
           </div>
           {a.favWeekdayIdx >= 0 && (
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.8rem' }}>
-              あなたが一番燃える曜日は <span style={{ color: '#ffea00', fontWeight: 'bold' }}>{WEEKDAY_LABELS[a.favWeekdayIdx]}曜日</span>！
+              あなたが一番燃える曜日は <span style={{ color: '#ffd24a', fontWeight: 'bold' }}>{WEEKDAY_LABELS[a.favWeekdayIdx]}曜日</span>！
             </p>
           )}
         </div>
@@ -4160,7 +4172,7 @@ function App() {
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>ずかん達成度</span>
-            <span style={{ fontWeight: 'bold', color: isComplete ? '#ffea00' : '#00ffff', textShadow: isComplete ? '0 0 10px rgba(255,234,0,0.6)' : 'none' }}>
+            <span style={{ fontWeight: 'bold', color: isComplete ? '#ffd24a' : '#6ea8ff', textShadow: isComplete ? '0 0 10px rgba(255,210,74,0.6)' : 'none' }}>
               <span style={{ fontSize: '1.5rem' }}>{discoveredForms}</span>
               <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}> / {totalForms} 種</span>
             </span>
@@ -4168,12 +4180,12 @@ function App() {
           <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', overflow: 'hidden' }}>
             <div style={{
               width: `${completionPct}%`, height: '100%', borderRadius: '6px',
-              background: isComplete ? 'linear-gradient(90deg, #ffea00, #ff8c00)' : 'linear-gradient(90deg, #00ffff, #ff00ff)',
+              background: isComplete ? 'linear-gradient(90deg, #ffd24a, #ff9f43)' : 'linear-gradient(90deg, #6ea8ff, #ff6b7a)',
               transition: 'width 0.6s ease-out',
-              boxShadow: isComplete ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+              boxShadow: isComplete ? '0 0 10px rgba(255,210,74,0.6)' : 'none',
             }} />
           </div>
-          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: isComplete ? '#ffea00' : 'var(--text-secondary)', fontWeight: isComplete ? 'bold' : 'normal' }}>
+          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: isComplete ? '#ffd24a' : 'var(--text-secondary)', fontWeight: isComplete ? 'bold' : 'normal' }}>
             {isComplete ? '🎉 図鑑コンプリート！全ての筋肉が完全体だ！' : `達成率 ${completionPct}%`}
           </p>
         </div>
@@ -4219,8 +4231,9 @@ function App() {
         {/* 部位グループごとの進化系統リスト */}
         {MUSCLE_GROUPS.map(group => (
           <div key={group.id} style={{ marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.4rem' }}>
-              {group.title}
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>
+              <span className="group-plate" style={{ background: group.plate }} aria-hidden="true" />
+              {group.label}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {group.muscles.map(muscle => {
@@ -4243,7 +4256,7 @@ function App() {
                         <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-accent)' }}>{MUSCLE_NAMES[muscle]}</span>
                         <span style={{ fontSize: '0.7rem', color: 'var(--border-highlight)' }}>Lv.{level}</span>
                       </div>
-                      <span style={{ fontSize: '0.7rem', color: discoveredCount === 3 ? '#ffea00' : 'var(--text-secondary)', fontWeight: discoveredCount === 3 ? 'bold' : 'normal' }}>
+                      <span style={{ fontSize: '0.7rem', color: discoveredCount === 3 ? '#ffd24a' : 'var(--text-secondary)', fontWeight: discoveredCount === 3 ? 'bold' : 'normal' }}>
                         {discoveredCount === 3 ? '★ ' : ''}{discoveredCount}/3
                       </span>
                     </div>
@@ -4333,7 +4346,7 @@ function App() {
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>種目コンプリート</span>
-            <span style={{ fontWeight: 'bold', color: allDone ? '#ffea00' : '#00ffff', textShadow: allDone ? '0 0 10px rgba(255,234,0,0.6)' : 'none' }}>
+            <span style={{ fontWeight: 'bold', color: allDone ? '#ffd24a' : '#6ea8ff', textShadow: allDone ? '0 0 10px rgba(255,210,74,0.6)' : 'none' }}>
               <span style={{ fontSize: '1.5rem' }}>{discoveredCount}</span>
               <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}> / {totalCount} 種</span>
             </span>
@@ -4341,12 +4354,12 @@ function App() {
           <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', overflow: 'hidden' }}>
             <div style={{
               width: `${pct}%`, height: '100%', borderRadius: '6px',
-              background: allDone ? 'linear-gradient(90deg, #ffea00, #ff8c00)' : 'linear-gradient(90deg, #00ffff, #ff00ff)',
+              background: allDone ? 'linear-gradient(90deg, #ffd24a, #ff9f43)' : 'linear-gradient(90deg, #6ea8ff, #ff6b7a)',
               transition: 'width 0.6s ease-out',
-              boxShadow: allDone ? '0 0 10px rgba(255,234,0,0.6)' : 'none',
+              boxShadow: allDone ? '0 0 10px rgba(255,210,74,0.6)' : 'none',
             }} />
           </div>
-          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: allDone ? '#ffea00' : 'var(--text-secondary)', fontWeight: allDone ? 'bold' : 'normal' }}>
+          <p style={{ textAlign: 'center', fontSize: '0.8rem', marginTop: '0.6rem', color: allDone ? '#ffd24a' : 'var(--text-secondary)', fontWeight: allDone ? 'bold' : 'normal' }}>
             {allDone ? '🎉 全種目制覇！君はトレーニングマスターだ！' : `挑戦率 ${pct}%`}
           </p>
         </div>
@@ -4362,8 +4375,9 @@ function App() {
           if (groupExercises.length === 0) return null;
           return (
             <div key={group.id} style={{ marginBottom: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.4rem' }}>
-                {group.title}
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>
+                <span className="group-plate" style={{ background: group.plate }} aria-hidden="true" />
+                {group.label}
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
                 {groupExercises.map(ex => {
@@ -4378,7 +4392,7 @@ function App() {
                           </span>
                           <EquipmentBadge equipment={ex.equipment} size="sm" />
                           {ex.isBodyweight && (
-                            <span style={{ fontSize: '0.6rem', color: '#39ff14', border: '1px solid #39ff14', borderRadius: '999px', padding: '1px 6px' }}>自重</span>
+                            <span style={{ fontSize: '0.6rem', color: '#4ade80', border: '1px solid #4ade80', borderRadius: '999px', padding: '1px 6px' }}>自重</span>
                           )}
                         </div>
                         {discovered ? (
@@ -4428,7 +4442,7 @@ function App() {
                                       {MUSCLE_NAMES[t.muscle]}
                                     </span>
                                   </div>
-                                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#ffea00', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#ffd24a', whiteSpace: 'nowrap' }}>
                                     +{expPerSet}
                                   </span>
                                 </div>
@@ -4529,8 +4543,8 @@ function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--text-accent)' }}>
                       {c.name}
-                      {won && <span style={{ fontSize: '0.7rem', color: '#ffea00' }}> 優勝🏆</span>}
-                      {!won && cleared && <span style={{ fontSize: '0.7rem', color: '#39ff14' }}> 入賞✓</span>}
+                      {won && <span style={{ fontSize: '0.7rem', color: '#ffd24a' }}> 優勝🏆</span>}
+                      {!won && cleared && <span style={{ fontSize: '0.7rem', color: '#4ade80' }}> 入賞✓</span>}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{c.flavor}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
@@ -4557,19 +4571,43 @@ function App() {
   return (
     <>
     <div className="main-content" ref={mainContentRef}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <header className="app-header">
         {selectedTitle && (
-          <div style={{ color: '#ffea00', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '0.5rem', animation: 'float 3s ease-in-out infinite' }}>
+          <div style={{ color: '#ffd24a', fontFamily: 'var(--font-pixel)', fontSize: '1rem', marginBottom: '0.25rem' }}>
             【{selectedTitle}】
           </div>
         )}
-        <h1 style={{ color: 'var(--text-primary)', fontSize: 'clamp(1.7rem, 8vw, 2.5rem)', margin: '0' }}>マッスル<br />モンスターズ</h1>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>筋トレで筋肉を育てよう！</p>
-        <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+        <h1 className="app-title">マッスルモンスターズ</h1>
+        {(() => {
+          // 総レベルに応じてバーベルにプレートが増えていく（全体の育ち具合がひと目でわかる）
+          const muscleKeys = Object.keys(stats) as MuscleType[];
+          const totalLevel = muscleKeys.reduce((sum, m) => sum + stats[m].level, 0);
+          const plateCount = Math.min(BARBELL_PLATES.length, Math.max(0, Math.floor((totalLevel - muscleKeys.length) / BARBELL_LEVELS_PER_PLATE)));
+          const plates = BARBELL_PLATES.slice(0, plateCount);
+          const nextAt = plateCount < BARBELL_PLATES.length ? muscleKeys.length + (plateCount + 1) * BARBELL_LEVELS_PER_PLATE : null;
+          const tip = `総レベル ${totalLevel}${nextAt ? `｜あと${nextAt - totalLevel}でプレートが1枚増える` : '｜フル装填！'}`;
+          const side = (cls: string) => (
+            <div className={`barbell-side ${cls}`}>
+              <div className="barbell-sleeve" />
+              {[...plates].reverse().map((pl, i) => (
+                <div key={i} className="barbell-plate" style={{ background: pl.color, height: `${pl.height}px` }} />
+              ))}
+              <div className="barbell-collar" />
+            </div>
+          );
+          return (
+            <div className="barbell" role="img" aria-label={tip} data-tooltip-id="calendar-tooltip" data-tooltip-content={tip}>
+              {side('left')}
+              <div className="barbell-bar" />
+              {side('right')}
+            </div>
+          );
+        })()}
+        <div className="header-chips">
           {playerName && (
             <button
               onClick={() => { setPlayerNameDraft(playerName); setShowPlayerModal(true); }}
-              style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-accent)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+              style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
             >
               👤 {playerName} <span style={{ color: 'var(--text-secondary)' }}>✏️</span>
             </button>
@@ -4577,14 +4615,12 @@ function App() {
           <button
             onClick={() => setShowSettingsModal(true)}
             aria-label="設定"
-            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-highlight)', borderRadius: '999px', cursor: 'pointer' }}
+            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '999px', cursor: 'pointer', boxShadow: 'none' }}
           >
             ⚙️ 設定
           </button>
         </div>
-      </div>
-
-
+      </header>
 
       {/* --- タブコンテンツ：キャラクター --- */}
       {activeTab === 'characters' && (
@@ -4595,10 +4631,10 @@ function App() {
             const effStreak = getEffectiveStreak(streak, now);
             const nextMilestone = getNextStreakMilestone(streak);
             return (
-              <div className="glass-panel" style={{ width: '100%', marginBottom: '1rem', textAlign: 'center', borderColor: effStreak > 0 ? '#ff6b35' : undefined, background: effStreak > 0 ? 'rgba(255, 107, 53, 0.08)' : undefined }}>
+              <div className="glass-panel" style={{ width: '100%', marginBottom: '1rem', textAlign: 'center', borderColor: effStreak > 0 ? '#ff8a4c' : undefined, background: effStreak > 0 ? 'rgba(255,138,76,0.08)' : undefined }}>
                 {effStreak > 0 ? (
                   <>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b35' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff8a4c' }}>
                       🔥 {effStreak}日連続トレ中！
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
@@ -4623,7 +4659,7 @@ function App() {
           })()}
 
           {overworkAlerts.length > 0 && (
-            <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255, 165, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
+            <div className="glass-panel" style={{ borderColor: 'orange', backgroundColor: 'rgba(255,159,67,0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
               <h3 style={{ color: 'orange' }}>⚠️ オーバーワーク注意！</h3>
               <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>超回復前にトレーニングしたため獲得EXPが半減しました。</p>
               <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{overworkAlerts.map(m => MUSCLE_NAMES[m]).join('、')}</p>
@@ -4633,7 +4669,7 @@ function App() {
 
           {detrainAlert.length > 0 && (
             <div className="glass-panel" style={{ borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', textAlign: 'center', marginBottom: '1rem', width: '100%' }}>
-              <h3 style={{ color: '#ff4444' }}>⚠️ 筋肉ダウンのお知らせ</h3>
+              <h3 style={{ color: '#ff5c5c' }}>⚠️ 筋肉ダウンのお知らせ</h3>
               <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>14日間以上トレーニングをサボったため、筋肉が落ちて（EXP半減）しまいました…</p>
               <p style={{ fontWeight: 'bold', margin: '0.5rem 0' }}>{detrainAlert.join('、')}</p>
               <button onClick={() => setDetrainAlert([])} style={{ borderColor: 'red', color: 'red', marginTop: '0.5rem', padding: '0.5rem 1rem' }}>確認した</button>
@@ -4648,9 +4684,9 @@ function App() {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  backgroundColor: 'rgba(0, 255, 255, 0.1)',
-                  borderColor: '#00ffff',
-                  color: '#00ffff',
+                  backgroundColor: 'rgba(110,168,255,0.1)',
+                  borderColor: '#6ea8ff',
+                  color: '#6ea8ff',
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -4670,8 +4706,9 @@ function App() {
           <div style={{ width: '100%' }}>
           {MUSCLE_GROUPS.map(group => (
             <div key={group.id} style={{ marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.4rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-                {group.title}
+              <h2 style={{ fontSize: '1.25rem', margin: '0.5rem 0 0.75rem' }}>
+                <span className="group-plate" style={{ background: group.plate }} aria-hidden="true" />
+                {group.label}
               </h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '1rem' }}>
                 {group.muscles.map(muscle => {
@@ -4705,8 +4742,8 @@ function App() {
                       onClick={() => { setShowTrainingPicker(false); setEditingNickname(false); setSelectedMuscleInfo(muscle); }}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0.8rem 0.5rem', cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                        borderColor: isTrainedToday ? '#39ff14' : undefined,
-                        boxShadow: isTrainedToday ? '0 0 16px rgba(57, 255, 20, 0.35)' : undefined
+                        borderColor: isTrainedToday ? '#4ade80' : undefined,
+                        boxShadow: isTrainedToday ? '0 0 16px rgba(74,222,128,0.35)' : undefined
                       }}
                     >
                       
@@ -4767,7 +4804,7 @@ function App() {
                           <div
                             data-tooltip-id="calendar-tooltip"
                             data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate((mStats.lastTrainedAt || 0) + requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR)}まで）`}
-                            style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(57, 255, 20, 0.2)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(57, 255, 20, 0.5)', animation: 'pulse 1.5s infinite' }}
+                            style={{ position: 'absolute', top: '-5px', right: '5px', background: 'rgba(74,222,128,0.2)', padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', border: '1px solid rgba(74,222,128,0.5)', animation: 'pulse 1.5s infinite' }}
                           >
                             ⚡
                           </div>
@@ -4779,9 +4816,9 @@ function App() {
                             style={{
                               position: 'absolute', top: '-5px', left: '5px',
                               // ゴールデンタイムのみ黄。通常ボーナス・対象はシアンで統一し、緑（超回復ピーク⚡/本日トレ済み）との被りを避ける。
-                              background: hasGoldenBonus ? 'rgba(255, 234, 0, 0.2)' : 'rgba(0, 255, 255, 0.2)',
+                              background: hasGoldenBonus ? 'rgba(255,210,74,0.2)' : 'rgba(110,168,255,0.2)',
                               padding: '2px', borderRadius: '50%', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px',
-                              border: `1px solid ${hasGoldenBonus ? 'rgba(255, 234, 0, 0.5)' : 'rgba(0, 255, 255, 0.5)'}`,
+                              border: `1px solid ${hasGoldenBonus ? 'rgba(255,210,74,0.5)' : 'rgba(110,168,255,0.5)'}`,
                               animation: isProteinTarget ? 'pulse 1.5s infinite' : 'float 2s ease-in-out infinite'
                             }}
                           >
@@ -4797,7 +4834,7 @@ function App() {
                           <span>{mStats.exp}/{reqExp}</span>
                         </div>
                         <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #00ffff, #0088ff)', transition: 'width 0.5s ease-out' }} />
+                          <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #6ea8ff, #0088ff)', transition: 'width 0.5s ease-out' }} />
                         </div>
                       </div>
 
@@ -4828,12 +4865,12 @@ function App() {
                             data-tooltip-id="calendar-tooltip"
                             data-tooltip-content={`超回復ピーク！今鍛えると獲得EXP x${SUPERCOMP_BONUS}（${formatDate(superCompEndsAt)}まで）`}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#39ff14', marginBottom: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#4ade80', marginBottom: '2px' }}>
                               <span>狙い目⚡</span>
                               <span>あと{remainingHours}時間</span>
                             </div>
                             <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                              <div style={{ width: `${remainingPct}%`, height: '100%', background: 'linear-gradient(90deg, #39ff14, #00ffaa)', transition: 'width 0.5s ease-out' }} />
+                              <div style={{ width: `${remainingPct}%`, height: '100%', background: 'linear-gradient(90deg, #4ade80, #4ade80)', transition: 'width 0.5s ease-out' }} />
                             </div>
                           </div>
                         );
@@ -4909,8 +4946,8 @@ function App() {
               </div>
 
               {recommendedExercises.length > 0 && (
-                <div style={{ background: 'rgba(57, 255, 20, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid #39ff14', marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.9rem', color: '#39ff14', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ background: 'rgba(74,222,128,0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid #4ade80', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <span>✨</span> おすすめトレーニング
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -4924,7 +4961,7 @@ function App() {
                           fontSize: '0.85rem',
                           background: selectedExerciseId === ex.id ? 'var(--btn-hover-bg)' : 'rgba(0,0,0,0.5)',
                           color: selectedExerciseId === ex.id ? 'var(--btn-hover-text)' : 'var(--text-primary)',
-                          border: `1px solid ${selectedExerciseId === ex.id ? '#39ff14' : 'var(--border-color)'}`,
+                          border: `1px solid ${selectedExerciseId === ex.id ? '#4ade80' : 'var(--border-color)'}`,
                           textTransform: 'none',
                           display: 'inline-flex', alignItems: 'center', gap: '6px'
                         }}
@@ -4993,7 +5030,7 @@ function App() {
                             💤
                           </div>
                         )}
-                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : '#39ff14', fontWeight: isRecovering ? 'normal' : 'bold', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.65rem', color: isRecovering ? 'orange' : '#4ade80', fontWeight: isRecovering ? 'normal' : 'bold', marginTop: '2px' }}>
                           {MUSCLE_NAMES[target.muscle]}
                         </span>
                       </div>
@@ -5003,8 +5040,8 @@ function App() {
               )}
 
               {selectedExercise && selectedExercise.description && (
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.8rem', borderRadius: '8px', borderLeft: '3px solid #ffea00', marginTop: '0.5rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#ffea00', marginBottom: '4px', fontWeight: 'bold' }}>💡 やり方</div>
+                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.8rem', borderRadius: '8px', borderLeft: '3px solid #ffd24a', marginTop: '0.5rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#ffd24a', marginBottom: '4px', fontWeight: 'bold' }}>💡 やり方</div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                     {selectedExercise.description}
                   </div>
@@ -5039,7 +5076,7 @@ function App() {
           </form>
           
           {recordSuccess && (
-            <div style={{ textAlign: 'center', color: '#39ff14', fontWeight: 'bold', marginTop: '1rem', animation: 'scaleIn 0.3s ease-out' }}>
+            <div style={{ textAlign: 'center', color: '#4ade80', fontWeight: 'bold', marginTop: '1rem', animation: 'scaleIn 0.3s ease-out' }}>
               記録しました！EXP獲得！
             </div>
           )}
@@ -5109,9 +5146,9 @@ function App() {
                     </span>
                     {day.proteinCount > 0 && (
                       <span style={{
-                        background: 'rgba(255, 0, 255, 0.12)',
-                        border: '1px solid rgba(255, 0, 255, 0.4)',
-                        color: '#ff7bff',
+                        background: 'rgba(255,107,122,0.12)',
+                        border: '1px solid rgba(255,107,122,0.4)',
+                        color: '#ff8fa0',
                         padding: '3px 10px',
                         borderRadius: '14px',
                         fontSize: '0.8rem',
@@ -5130,14 +5167,14 @@ function App() {
                           display: 'inline-flex',
                           alignItems: 'baseline',
                           gap: '5px',
-                          background: 'rgba(0,255,255,0.08)',
-                          border: '1px solid rgba(0,255,255,0.25)',
+                          background: 'rgba(110,168,255,0.08)',
+                          border: '1px solid rgba(110,168,255,0.25)',
                           borderRadius: '14px',
                           padding: '3px 10px',
                           fontSize: '0.8rem',
                         }}>
                           <span style={{ color: 'var(--text-primary)' }}>{MUSCLE_NAMES[m.muscle]}</span>
-                          <b style={{ color: '#00ffff' }}>{m.sets}set</b>
+                          <b style={{ color: '#6ea8ff' }}>{m.sets}set</b>
                           <span style={{ color: 'var(--text-accent)', fontSize: '0.72rem' }}>+{m.exp}</span>
                         </span>
                       ))}
@@ -5177,7 +5214,7 @@ function App() {
                             </div>
                           </div>
                           <div style={{
-                            background: 'rgba(57, 255, 20, 0.1)',
+                            background: 'rgba(74,222,128,0.1)',
                             color: 'var(--text-accent)',
                             padding: '8px 12px',
                             borderRadius: '16px',
@@ -5207,7 +5244,7 @@ function App() {
               const isSelected = selectedTitle === ach.name;
               return (
                 <div key={ach.id} style={{ 
-                  background: isUnlocked ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                  background: isUnlocked ? 'rgba(110,168,255,0.1)' : 'rgba(255, 255, 255, 0.05)',
                   border: `1px solid ${isUnlocked ? 'var(--border-highlight)' : 'var(--border-color)'}`,
                   padding: '1rem',
                   borderRadius: '8px',
@@ -5217,7 +5254,7 @@ function App() {
                   opacity: isUnlocked ? 1 : 0.5
                 }}>
                   <div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isUnlocked ? '#00ffff' : '#8b8bac' }}>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isUnlocked ? '#6ea8ff' : '#8b8bac' }}>
                       {isUnlocked ? ach.name : '？？？'}
                     </div>
                     <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -5397,14 +5434,14 @@ function App() {
       {recordResult && (
         <div className="modal-overlay" style={{ zIndex: 1001 }}>
           <div className="modal-content result-modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.3s ease-out' }}>
-            <h1 style={{ color: '#ffea00', fontSize: '2rem', marginBottom: '1rem' }}>TRAINING COMPLETE!</h1>
+            <h1 style={{ color: '#ffd24a', fontSize: '2rem', marginBottom: '1rem' }}>TRAINING COMPLETE!</h1>
             {recordResult.isBestPump && (
-              <p style={{ color: '#ff00ff', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1s infinite' }}>
+              <p style={{ color: '#ff6b7a', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1s infinite' }}>
                 ⭐ BEST PUMP BONUS (x1.5 EXP) ⭐
               </p>
             )}
             {recordResult.streakCount >= 2 && (
-              <p style={{ color: '#ff6b35', fontWeight: 'bold', marginBottom: '1rem', fontSize: '0.95rem' }}>
+              <p style={{ color: '#ff8a4c', fontWeight: 'bold', marginBottom: '1rem', fontSize: '0.95rem' }}>
                 🔥 {recordResult.streakCount}日連続トレ中！
                 {recordResult.nextStreakMilestone && (
                   <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.8rem' }}>
@@ -5431,11 +5468,11 @@ function App() {
       {(!recordResult && achievementAlert) && (
         <div className="modal-overlay" style={{ zIndex: 1002 }}>
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'popUp 0.5s ease-out' }}>
-            <h1 style={{ color: '#00ffff', fontSize: '2.5rem', marginBottom: '1rem' }}>🏆 実績解除！ 🏆</h1>
+            <h1 style={{ color: '#6ea8ff', fontSize: '2.5rem', marginBottom: '1rem' }}>🏆 実績解除！ 🏆</h1>
             <p style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
               {achievementAlert.description}
             </p>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ffea00', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,234,0,0.1)', borderRadius: '8px', border: '1px solid #ffea00' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ffd24a', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,210,74,0.1)', borderRadius: '8px', border: '1px solid #ffd24a' }}>
               称号「{achievementAlert.name}」を獲得しました！
             </div>
             <button onClick={() => setAchievementAlert(null)} style={{ width: '100%', maxWidth: '200px' }}>
@@ -5453,7 +5490,7 @@ function App() {
         return (
         <div className="modal-overlay">
           <div className="modal-content glass-panel" style={{ textAlign: 'center', animation: 'scaleIn 0.5s ease-out' }}>
-            <h1 style={{ color: branchInfo ? branchInfo.color : '#ffea00', fontSize: '3rem', marginBottom: '1rem' }}>
+            <h1 style={{ color: branchInfo ? branchInfo.color : '#ffd24a', fontSize: '3rem', marginBottom: '1rem' }}>
               {isChange ? '型が変化！！' : branchInfo ? '分岐進化！！' : '進化！！'}
             </h1>
             <p style={{ fontSize: '1.5rem', marginBottom: branchInfo ? '1rem' : '2rem' }}>
@@ -5603,7 +5640,7 @@ function App() {
                 const items: { emoji: string; label: string; color: string; desc: string }[] = [];
 
                 if (isTrainedToday) {
-                  items.push({ emoji: '💪', label: '本日トレーニング済み', color: '#39ff14', desc: '今日この部位を鍛えました。カードが緑色に光ります。' });
+                  items.push({ emoji: '💪', label: '本日トレーニング済み', color: '#4ade80', desc: '今日この部位を鍛えました。カードが緑色に光ります。' });
                 }
                 if (isRecovering) {
                   const remainingHours = Math.ceil((requiredRecoveryMs - timeSinceLastTraining) / (60 * 60 * 1000));
@@ -5614,14 +5651,14 @@ function App() {
                   // この窓を過ぎるとサボり圏に入りボーナスが消えるので、期限を明示する。
                   const superCompEndsAt = mStats.lastTrainedAt! + requiredRecoveryMs * CONDITION_SABORI_GRACE_FACTOR;
                   const remainingHours = Math.max(1, Math.ceil((superCompEndsAt - Date.now()) / (60 * 60 * 1000)));
-                  items.push({ emoji: '⚡', label: '超回復ピーク（狙い目）', color: '#39ff14', desc: `回復が完了した狙い目の状態。今鍛えると獲得EXPが x${SUPERCOMP_BONUS} になります。${formatDate(superCompEndsAt)}まで（あと約${remainingHours}時間）がボーナス期限。過ぎるとサボり扱いになります。` });
+                  items.push({ emoji: '⚡', label: '超回復ピーク（狙い目）', color: '#4ade80', desc: `回復が完了した狙い目の状態。今鍛えると獲得EXPが x${SUPERCOMP_BONUS} になります。${formatDate(superCompEndsAt)}まで（あと約${remainingHours}時間）がボーナス期限。過ぎるとサボり扱いになります。` });
                 }
                 if (hasGoldenBonus) {
-                  items.push({ emoji: '✨', label: 'ゴールデンタイム', color: '#ffea00', desc: '次回の獲得EXPが x1.5 になります（トレーニングで消費）。' });
+                  items.push({ emoji: '✨', label: 'ゴールデンタイム', color: '#ffd24a', desc: '次回の獲得EXPが x1.5 になります（トレーニングで消費）。' });
                 } else if (hasNormalBonus) {
-                  items.push({ emoji: '✨', label: 'プロテインボーナス', color: '#00ffff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
+                  items.push({ emoji: '✨', label: 'プロテインボーナス', color: '#6ea8ff', desc: '次回の獲得EXPが x1.3 になります（トレーニングで消費）。' });
                 } else if (isProteinTarget) {
-                  items.push({ emoji: '🥤', label: 'プロテイン対象', color: '#00ffff', desc: 'トレーニングから2時間以内。今プロテインを飲むと次回EXPにボーナスが付きます。' });
+                  items.push({ emoji: '🥤', label: 'プロテイン対象', color: '#6ea8ff', desc: 'トレーニングから2時間以内。今プロテインを飲むと次回EXPにボーナスが付きます。' });
                 }
                 if (branchInfo) {
                   items.push({ emoji: branchInfo.emoji, label: `分岐進化: ${branchInfo.label}`, color: branchInfo.color, desc: branchInfo.description });
@@ -5725,7 +5762,7 @@ function App() {
                         <button
                           key={ex.id}
                           onClick={() => goToRecord(ex.id)}
-                          style={{ width: '100%', padding: '0.8rem', textTransform: 'none', textAlign: 'center', border: '1px solid #39ff14', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                          style={{ width: '100%', padding: '0.8rem', textTransform: 'none', textAlign: 'center', border: '1px solid #4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                         >
                           <span>{ex.name}</span>
                           <EquipmentBadge equipment={ex.equipment} size="sm" />
@@ -5749,7 +5786,7 @@ function App() {
                     width: '100%', padding: '1rem', marginBottom: '0.6rem',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                     background: 'var(--btn-hover-bg)', color: 'var(--btn-hover-text)',
-                    border: '1px solid #39ff14', fontWeight: 'bold'
+                    border: '1px solid #4ade80', fontWeight: 'bold'
                   }}
                 >
                   🏋️ この部位を鍛える
@@ -5842,8 +5879,8 @@ function App() {
               </ul>
             </div>
 
-            <div style={{ background: 'rgba(255,234,0,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffea00' }}>
-              <h4 style={{ fontSize: '0.9rem', color: '#ffea00', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ background: 'rgba(255,210,74,0.1)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ffd24a' }}>
+              <h4 style={{ fontSize: '0.9rem', color: '#ffd24a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span>💡</span> Tips
               </h4>
               <p style={{ fontSize: '0.8rem', lineHeight: '1.5', margin: 0 }}>

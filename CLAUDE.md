@@ -330,10 +330,18 @@ at a time via `closeEvolutionAlert`.
 
 - **Styling**: predominantly **inline styles** on JSX, with a set of shared
   classes and CSS custom properties (`--text-primary`, `--text-accent`,
-  `--border-highlight`, etc.) defined in `src/index.css`. The theme is a dark,
-  neon "retro game" look. Reuse the existing CSS variables and utility classes
-  (`glass-panel`, `muscle-card`, `modal-overlay`, `tab-button`) rather than
-  introducing a new styling approach.
+  `--border-highlight`, etc.) defined in `src/index.css`. The theme is
+  "gym floor × retro RPG window": a rubber-mat slate background, panels styled
+  as RPG message windows (chalk border + dark rim, hard shadows, no neon glow),
+  and accents taken from competition bumper-plate colors (`--plate-red` /
+  `--plate-blue` / `--plate-yellow` / `--plate-green` / `--plate-white`).
+  Headings, numbers and buttons use DotGothic16 (`--font-pixel`); body text uses
+  M PLUS 1p (`--font-body`). Each `MUSCLE_GROUPS` entry has a `plate` color
+  shown as a small plate beside its heading, and the header barbell
+  (`BARBELL_PLATES`) loads a plate per `BARBELL_LEVELS_PER_PLATE` total levels.
+  Reuse the existing CSS variables and utility classes (`glass-panel`,
+  `muscle-card`, `modal-overlay`, `tab-button`) rather than introducing a new
+  styling approach.
 - **TypeScript is strict**: `noUnusedLocals`, `noUnusedParameters`,
   `noFallthroughCasesInSwitch`, `verbatimModuleSyntax` are on. Use
   `import type` for type-only imports.
